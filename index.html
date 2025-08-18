@@ -60,15 +60,27 @@
   .hr{height:1px;background:var(--border);margin:12px 0}
   .pill{background:var(--chip);border:1px solid var(--border);padding:6px 10px;border-radius:999px;color:#cfd6e6}
 
-  /* Presets vertical */
   .preset-col{display:flex;flex-direction:column;gap:8px}
   .preset-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:10px}
 
-  /* Stars */
   .stars{display:flex;gap:6px}
   .starbtn{background:transparent;border:none;padding:0;cursor:pointer;display:grid;place-items:center}
   .star svg{width:22px;height:22px;fill:#3a3a3a}
   .star.on svg{fill:#ffd43b;filter:drop-shadow(0 0 4px rgba(255,212,59,.25))}
+
+  /* Service section */
+  .table{width:100%;border-collapse:separate;border-spacing:0 8px}
+  .table tr{background:var(--card);border:1px solid var(--border)}
+  .table td,.table th{padding:10px 12px;border-top:1px solid var(--border)}
+  .table tr:first-child td,.table tr:first-child th{border-top:none}
+  .nowrap{white-space:nowrap}
+  .muted{color:#9fb0c7}
+  .mono{font-variant-numeric:tabular-nums}
+  .grow{width:100%}
+  .input, .select{width:100%;padding:8px;border-radius:10px;border:1px solid var(--border);background:var(--card);color:var(--text)}
+  .chips{display:flex;flex-direction:column;gap:6px}
+  .chipline{display:flex;gap:6px;align-items:center}
+  .del{background:#2a1a1a;border:1px solid #3a2626}
 </style>
 
 <script src="https://unpkg.com/dropbox/dist/Dropbox-sdk.min.js"></script>
@@ -77,10 +89,9 @@
 <header>
   <div class="wrap title">
     <div class="logo" aria-hidden="true">
-      <!-- Shock outline icon (brand orange) -->
+      <!-- Shock outline icon -->
       <svg viewBox="0 0 64 64" fill="none" stroke="#ff6a00" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="10" cy="54" r="7"/>
-        <circle cx="54" cy="10" r="7"/>
+        <circle cx="10" cy="54" r="7"/><circle cx="54" cy="10" r="7"/>
         <path d="M15 49L49 15M20 44l24-24M25 39l14-14"/>
         <rect x="13" y="26" width="16" height="9" rx="3" transform="rotate(-45 13 26)"/>
         <rect x="35" y="46" width="16" height="9" rx="3" transform="rotate(-45 35 46)"/>
@@ -141,7 +152,6 @@
         <!-- FRONT -->
         <div class="card" id="frontCard">
           <h3 style="margin:0 0 10px 0">Front</h3>
-
           <div class="setting" data-setting="front.preload">
             <h4>PRELOAD <span class="suffix" id="suffix-front.preload"></span></h4>
             <div class="ctrl">
@@ -150,7 +160,6 @@
               <button data-delta="1" data-path="front.preload">+</button>
             </div>
           </div>
-
           <div class="setting" data-setting="front.comp">
             <h4>COMP <span class="suffix" id="suffix-front.comp"></span></h4>
             <div class="ctrl">
@@ -159,7 +168,6 @@
               <button data-delta="1" data-path="front.comp">+</button>
             </div>
           </div>
-
           <div class="setting" data-setting="front.reb">
             <h4>REB <span class="suffix" id="suffix-front.reb"></span></h4>
             <div class="ctrl">
@@ -168,8 +176,6 @@
               <button data-delta="1" data-path="front.reb">+</button>
             </div>
           </div>
-
-          <!-- Fork height −30..0 mm (0 = green) -->
           <div class="setting" data-setting="front.forkHeight">
             <h4>FORK HEIGHT <span class="suffix" id="suffix-front.forkHeight"></span></h4>
             <div class="ctrl">
@@ -183,7 +189,6 @@
         <!-- REAR -->
         <div class="card" id="rearCard">
           <h3 style="margin:0 0 10px 0">Rear</h3>
-
           <div class="setting" data-setting="rear.preload">
             <h4>PRELOAD <span class="suffix" id="suffix-rear.preload"></span></h4>
             <div class="ctrl">
@@ -192,7 +197,6 @@
               <button data-delta="1" data-path="rear.preload">+</button>
             </div>
           </div>
-
           <div class="setting" data-setting="rear.lsc">
             <h4>LS COMP <span class="suffix" id="suffix-rear.lsc"></span></h4>
             <div class="ctrl">
@@ -201,7 +205,6 @@
               <button data-delta="1" data-path="rear.lsc">+</button>
             </div>
           </div>
-
           <div class="setting" data-setting="rear.hsc">
             <h4>HS COMP <span class="suffix" id="suffix-rear.hsc"></span></h4>
             <div class="ctrl">
@@ -210,7 +213,6 @@
               <button data-delta="1" data-path="rear.hsc">+</button>
             </div>
           </div>
-
           <div class="setting" data-setting="rear.reb">
             <h4>REB <span class="suffix" id="suffix-rear.reb"></span></h4>
             <div class="ctrl">
@@ -231,6 +233,31 @@
         <h3 style="margin:0 0 10px 6px">Ratings (1–5)</h3>
         <div class="row" id="ratingsRow"></div>
       </div>
+
+      <!-- ===== Service Records Panel ===== -->
+      <div class="card" id="servicePanel" style="margin-top:14px">
+        <div class="row" style="justify-content:space-between;align-items:center">
+          <h3 style="margin:0">Service Records</h3>
+          <button class="btn brand" id="addServiceBtn">+ Add service record</button>
+        </div>
+        <div class="hr"></div>
+        <div id="serviceEmpty" class="muted">No service records yet.</div>
+        <table class="table" id="serviceTable" style="width:100%;display:none">
+          <thead>
+            <tr class="muted">
+              <th class="nowrap">Date</th>
+              <th class="nowrap">ODO (km)</th>
+              <th>Items</th>
+              <th class="nowrap">Receipt Ref</th>
+              <th class="nowrap">By</th>
+              <th>Comments</th>
+              <th class="nowrap"></th>
+            </tr>
+          </thead>
+          <tbody id="serviceBody"></tbody>
+        </table>
+      </div>
+      <!-- /Service -->
     </section>
   </div>
 </main>
@@ -241,11 +268,11 @@
     <h2>Settings</h2>
     <div class="row">
       <label class="pill">Dropbox file path</label>
-      <input id="dbxPath" class="btn" style="flex:1;text-align:left"/>
+      <input id="dbxPath" class="input" />
     </div>
     <div class="row" style="margin-top:10px">
       <label class="pill">Access token</label>
-      <input id="dbxToken" class="btn" style="flex:1;text-align:left" placeholder="Paste your Dropbox token"/>
+      <input id="dbxToken" class="input" placeholder="Paste your Dropbox token"/>
     </div>
     <div class="help" style="margin-top:8px">Use App‑Folder token; path should be <b>/suspension.json</b>.</div>
     <div class="row" style="margin-top:12px;justify-content:flex-end">
@@ -260,12 +287,12 @@
   <div class="panel" style="border-radius:16px">
     <h2>Add Bike</h2>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-      <div><label style="font-size:12px;color:#cfd6e6">Year</label><input id="bikeYear" type="number" placeholder="2023" class="btn" style="width:100%"/></div>
-      <div><label style="font-size:12px;color:#cfd6e6">Make</label><input id="bikeMake" placeholder="KTM" class="btn" style="width:100%"/></div>
-      <div><label style="font-size:12px;color:#cfd6e6">Model</label><input id="bikeModel" placeholder="890 Adventure" class="btn" style="width:100%"/></div>
-      <div><label style="font-size:12px;color:#cfd6e6">Rego</label><input id="bikeRego" placeholder="ABC‑123" class="btn" style="width:100%"/></div>
+      <div><label class="muted">Year</label><input id="bikeYear" type="number" placeholder="2023" class="input"/></div>
+      <div><label class="muted">Make</label><input id="bikeMake" placeholder="KTM" class="input"/></div>
+      <div><label class="muted">Model</label><input id="bikeModel" placeholder="890 Adventure" class="input"/></div>
+      <div><label class="muted">Rego</label><input id="bikeRego" placeholder="ABC‑123" class="input"/></div>
       <div style="grid-column:1 / -1">
-        <label style="font-size:12px;color:#cfd6e6">Photo</label>
+        <label class="muted">Photo</label>
         <div id="photoPreview" style="width:100%;height:140px;border:1px dashed #2b3244;border-radius:10px;display:grid;place-items:center;color:#8aa;overflow:hidden">Drop or pick an image</div>
         <input id="bikePhoto" type="file" accept="image/*" style="margin-top:8px"/>
       </div>
@@ -277,9 +304,57 @@
   </div>
 </dialog>
 
+<!-- SERVICE DIALOG -->
+<dialog id="serviceDlg" style="border:none;border-radius:16px;padding:0;max-width:720px;width:95%">
+  <div class="panel" style="border-radius:16px">
+    <h2 id="serviceDlgTitle">Add Service Record</h2>
+
+    <div class="row">
+      <div style="flex:1;min-width:180px">
+        <label class="muted">Date</label>
+        <input id="svcDate" type="date" class="input"/>
+      </div>
+      <div style="flex:1;min-width:180px">
+        <label class="muted">ODO (km)</label>
+        <input id="svcOdo" type="number" class="input mono" placeholder="e.g. 12,345"/>
+      </div>
+      <div style="flex:1;min-width:180px">
+        <label class="muted">Receipt Ref #</label>
+        <input id="svcReceipt" class="input" placeholder="e.g. DBX-2025-001"/>
+      </div>
+    </div>
+
+    <div class="row" style="margin-top:10px">
+      <div class="grow">
+        <label class="muted">By (owner / service center)</label>
+        <input id="svcBy" class="input" placeholder="Owner / KTM Dealer / Workshop"/>
+      </div>
+    </div>
+
+    <div style="margin-top:10px">
+      <label class="muted">Items (line items)</label>
+      <div id="svcItems" class="chips"></div>
+      <div class="row" style="margin-top:6px">
+        <input id="svcNewItem" class="input" placeholder="e.g. Fork oil 5W, change; Chain clean; Brake pads…"/>
+        <button class="btn" id="svcAddItem">Add item</button>
+      </div>
+    </div>
+
+    <div style="margin-top:10px">
+      <label class="muted">Comments</label>
+      <textarea id="svcComments" class="input" style="min-height:90px"></textarea>
+    </div>
+
+    <div class="row" style="margin-top:12px;justify-content:flex-end">
+      <button class="btn ghost" id="svcCancel">Cancel</button>
+      <button class="btn brand" id="svcSave">Save record</button>
+    </div>
+  </div>
+</dialog>
+
 <script>
 /* ========= CONSTANTS ========= */
-const LOCAL_KEY = 'mdc.tuner.v7.multibike';
+const LOCAL_KEY = 'mdc.tuner.v8.multibike.service';
 const TOKEN_KEY = 'mdc.dbx.token';
 const PATH_KEY  = 'mdc.dbx.path';
 const DEFAULT_DBX_PATH = '/suspension.json';
@@ -316,13 +391,13 @@ const RATING_CATS = [
 let dbx=null, syncTimer=null;
 let data={ currentBikeId:null, bikes:{}, updatedAt:new Date().toISOString() };
 
-/* ========= UTILS ========= */
-const $=(id)=>document.getElementById(id);
-function uid(){ return 'b_'+Math.random().toString(36).slice(2,10); }
+const $ = (id)=>document.getElementById(id);
+function uid(){ return 'id_'+Math.random().toString(36).slice(2,10); }
+
+/* ========= STATUS & STORAGE ========= */
 function setStatus(s,t){ $('syncDot').className='status-dot '+(s==='ok'?'ok':s==='sync'?'sync':'err'); $('syncText').textContent=t; }
 function showErr(m){ $('errTip').style.display='inline'; $('errTip').textContent=m||''; }
 function hideErr(){ $('errTip').style.display='none'; }
-
 function loadLocal(){ try{return JSON.parse(localStorage.getItem(LOCAL_KEY))}catch{return null} }
 function saveLocal(){ data.updatedAt=new Date().toISOString(); localStorage.setItem(LOCAL_KEY, JSON.stringify(data)); }
 
@@ -360,17 +435,23 @@ async function syncToDropbox(){
 }
 function debounceSync(){ clearTimeout(syncTimer); syncTimer=setTimeout(syncToDropbox,600); setStatus('sync','Syncing…'); }
 
-/* ========= MIGRATION / DEFAULTS ========= */
+/* ========= DEFAULTS / MIGRATION ========= */
 function defaultScenarios(){ return {
   'High Speed Naked': { front:{preload:0, comp:20, reb:18, forkHeight:0},   rear:{preload:4, lsc:20, hsc:2,   reb:18}, notes:'', ratings:{}, locked:false },
   'Loaded Touring':   { front:{preload:3, comp:15, reb:15, forkHeight:-10}, rear:{preload:10,lsc:7,  hsc:0.5, reb:15}, notes:'', ratings:{}, locked:false },
   'Enduro / Singles': { front:{preload:1, comp:18, reb:16, forkHeight:-15}, rear:{preload:5, lsc:18, hsc:1.5, reb:16}, notes:'', ratings:{}, locked:false }
 };}
 function migrateLegacySingle(single){ const id=uid(); return { currentBikeId:id, bikes:{[id]:{meta:{year:'',make:'KTM',model:'890 Adventure',rego:'',photo:''},currentScenario:single.current||'High Speed Naked',scenarios:single.scenarios||defaultScenarios(),service:[]}}, updatedAt:new Date().toISOString() }; }
-function bootstrapDefault(){ if(!data.currentBikeId){ const id=uid(); data.currentBikeId=id; data.bikes[id]={meta:{year:'',make:'KTM',model:'890 Adventure',rego:'',photo:''},currentScenario:'High Speed Naked',scenarios:defaultScenarios(),service:[]}; } }
+function bootstrapDefault(){
+  if(!data.currentBikeId){
+    const id=uid();
+    data.currentBikeId=id;
+    data.bikes[id]={meta:{year:'',make:'KTM',model:'890 Adventure',rego:'',photo:''},currentScenario:'High Speed Naked',scenarios:defaultScenarios(),service:[]};
+  }
+}
 function migrateIfNeeded(){ if(!data.bikes || !Object.keys(data.bikes).length) bootstrapDefault(); }
 
-/* ========= MODEL ========= */
+/* ========= CORE MODEL ========= */
 function bikeIds(){ return Object.keys(data.bikes||{}); }
 function curBike(){ return data.bikes[data.currentBikeId]; }
 function curScenario(){ const b=curBike(); return b.scenarios[b.currentScenario]; }
@@ -388,7 +469,7 @@ function softness(path,val){ const arr=valuesFor(path); const n=arr.length-1||1;
 function colorFor(path,val){ const s=softness(path,val); const hue=0+120*s; return `hsl(${hue.toFixed(0)} 70% 32%)`; }
 function displayText(path,val){ const u=unitFor(path); if(u==='turns') return `${val} ${val===1?'turn':'turns'}`; if(u==='+') return `${val} +`; if(u==='clicks') return `${val} click${val===1?'':'s'}`; if(u==='mm') return `${val} mm`; return `${val} ${u}`.trim(); }
 
-/* ========= RENDER ========= */
+/* ========= RENDERING ========= */
 function renderBikeList(){
   const list=$('bikeList'); list.innerHTML='';
   bikeIds().forEach(id=>{
@@ -398,10 +479,11 @@ function renderBikeList(){
     const sub=b.meta.rego?`Rego ${b.meta.rego}`:'';
     const thumb=b.meta.photo?`<img src="${b.meta.photo}" alt="photo" style="width:48px;height:36px;object-fit:cover;border-radius:8px;border:1px solid var(--border)">`:`<div style="width:48px;height:36px;border-radius:8px;border:1px dashed #2b3244;display:grid;place-items:center;color:#8aa;font-size:11px">no photo</div>`;
     item.innerHTML=`${thumb}<div><div class="item-title">${meta||'Untitled Bike'}</div><div class="item-sub">${sub}</div></div>`;
-    item.onclick=(e)=>{ data.currentBikeId=id; saveLocal(); renderAll(); debounceSync(); };
+    item.onclick=()=>{ data.currentBikeId=id; saveLocal(); renderAll(); debounceSync(); };
     list.appendChild(item);
   });
 }
+
 function renderScenarioList(){
   const list=$('scenarioList'); list.innerHTML='';
   const b=curBike();
@@ -419,6 +501,7 @@ function renderScenarioList(){
     list.appendChild(div);
   });
 }
+
 function renderPresets(){
   const col=$('presetCol'); col.innerHTML='';
   Object.entries(PRESETS).forEach(([name,sc])=>{
@@ -435,16 +518,18 @@ function renderPresets(){
     col.appendChild(card);
   });
 }
+
 function updateOne(path){
   const v=get(path); const el=$(path); const suf=$('suffix-'+path);
   el.textContent=displayText(path,v)+el.innerHTML.replace(/^[^<]*/,'');
   el.style.background=colorFor(path,v);
   suf.textContent=labelFor(path,v);
 }
+
 function renderRatings(){
   const row=$('ratingsRow'); row.innerHTML='';
   const ratings=curScenario().ratings||{};
-  ['High-Speed Comfort','Singles Comfort','High-Speed Stability','Front Grip','Rear Traction','Brake Dive'].forEach(cat=>{
+  RATING_CATS.forEach(cat=>{
     const wrap=document.createElement('div'); wrap.className='row';
     wrap.style.cssText='justify-content:space-between;background:var(--card);border:1px solid var(--border);padding:8px 10px;border-radius:10px;min-width:260px;flex:1;';
     const title=document.createElement('div'); title.textContent=cat;
@@ -460,6 +545,7 @@ function renderRatings(){
     wrap.appendChild(title); wrap.appendChild(stars); row.appendChild(wrap);
   });
 }
+
 function applyLockedUI(){
   const locked=!!curScenario().locked;
   document.querySelectorAll('.ctrl button').forEach(b=>b.disabled=locked);
@@ -468,13 +554,51 @@ function applyLockedUI(){
   $('renameScenarioBtn').disabled=locked;
   $('deleteScenarioBtn').disabled=locked;
 }
+
+/* ===== Service Rendering ===== */
+function renderService(){
+  const svc=curBike().service || (curBike().service=[]);
+  const empty=$('serviceEmpty'), table=$('serviceTable'), body=$('serviceBody');
+  if(!svc.length){ empty.style.display='block'; table.style.display='none'; return; }
+  empty.style.display='none'; table.style.display='table';
+  body.innerHTML='';
+
+  // newest first
+  const rows=[...svc].sort((a,b)=> (b.date||'').localeCompare(a.date||''));
+  rows.forEach(r=>{
+    const tr=document.createElement('tr');
+    const itemsText=(r.items||[]).join(' • ');
+    const commentsShort=(r.comments||'').length>80 ? r.comments.slice(0,77)+'…' : (r.comments||'');
+    tr.innerHTML=`
+      <td class="nowrap mono">${r.date||''}</td>
+      <td class="nowrap mono">${r.odo||''}</td>
+      <td>${itemsText||'<span class="muted">—</span>'}</td>
+      <td class="nowrap mono">${r.receiptRef||'<span class="muted">—</span>'}</td>
+      <td class="nowrap">${r.by||'<span class="muted">—</span>'}</td>
+      <td>${commentsShort||'<span class="muted">—</span>'}</td>
+      <td class="nowrap">
+        <button class="btn" data-act="edit">Edit</button>
+        <button class="btn del" data-act="delete">Delete</button>
+      </td>`;
+    tr.querySelector('[data-act="edit"]').onclick=()=>openServiceDialog(r.id);
+    tr.querySelector('[data-act="delete"]').onclick=()=>{
+      if(!confirm('Delete this record?')) return;
+      const list=curBike().service; const idx=list.findIndex(x=>x.id===r.id);
+      if(idx>-1){ list.splice(idx,1); saveLocal(); debounceSync(); renderService(); }
+    };
+    body.appendChild(tr);
+  });
+}
+
 function renderValues(){
   ['front.preload','front.comp','front.reb','front.forkHeight','rear.preload','rear.lsc','rear.hsc','rear.reb'].forEach(updateOne);
   $('currentTitle').textContent=curBike().currentScenario;
   $('notes').value=curScenario().notes||'';
   renderRatings();
   applyLockedUI();
+  renderService();
 }
+
 function renderAll(){ renderBikeList(); renderScenarioList(); renderPresets(); renderValues(); }
 
 /* ========= ACTIONS ========= */
@@ -549,6 +673,59 @@ $('openSettings').onclick=()=>{ $('dbxToken').value=localStorage.getItem(TOKEN_K
 $('closeSettings').onclick=()=>$('settingsDlg').close();
 $('saveSettings').onclick=()=>{ localStorage.setItem(TOKEN_KEY,($('dbxToken').value||'').trim()); localStorage.setItem(PATH_KEY,($('dbxPath').value||'').trim()||DEFAULT_DBX_PATH); dbx=null; $('settingsDlg').close(); loadFromDropboxFirst().then(()=>renderAll()); };
 $('signinBtn').onclick=()=>$('openSettings').click();
+
+/* ========= SERVICE DIALOG LOGIC ========= */
+const svcDlg=$('serviceDlg');
+$('svcCancel').onclick=()=>svcDlg.close();
+$('svcAddItem').onclick=()=>{
+  const t=$('svcNewItem'); const val=t.value.trim(); if(!val) return;
+  addItemChip(val); t.value=''; t.focus();
+};
+function addItemChip(text){
+  const wrap=$('svcItems');
+  const row=document.createElement('div'); row.className='chipline';
+  const input=document.createElement('input'); input.className='input grow'; input.value=text;
+  const del=document.createElement('button'); del.className='btn del'; del.textContent='Remove';
+  del.onclick=()=>row.remove();
+  row.appendChild(input); row.appendChild(del); wrap.appendChild(row);
+}
+function openServiceDialog(editId=null){
+  $('serviceDlgTitle').textContent= editId ? 'Edit Service Record' : 'Add Service Record';
+  svcDlg.dataset.editing= editId || '';
+  const today=new Date().toISOString().slice(0,10);
+  let rec = null;
+  if(editId){
+    rec = (curBike().service||[]).find(r=>r.id===editId);
+  }
+  $('svcDate').value = rec?.date || today;
+  $('svcOdo').value = rec?.odo || '';
+  $('svcReceipt').value = rec?.receiptRef || '';
+  $('svcBy').value = rec?.by || '';
+  $('svcComments').value = rec?.comments || '';
+  $('svcItems').innerHTML='';
+  (rec?.items||[]).forEach(it=>addItemChip(it));
+  svcDlg.showModal();
+}
+$('addServiceBtn').onclick=()=>openServiceDialog();
+
+$('svcSave').onclick=()=>{
+  const id = svcDlg.dataset.editing || uid();
+  const items = [...document.querySelectorAll('#svcItems .chipline input')].map(i=>i.value.trim()).filter(Boolean);
+  const rec = {
+    id,
+    date: $('svcDate').value || new Date().toISOString().slice(0,10),
+    odo: parseInt(($('svcOdo').value||'').replace(/,/g,''),10) || 0,
+    items,
+    receiptRef: $('svcReceipt').value.trim(),
+    by: $('svcBy').value.trim(),
+    comments: $('svcComments').value.trim()
+  };
+  const list = curBike().service || (curBike().service=[]);
+  const idx = list.findIndex(x=>x.id===id);
+  if(idx>-1) list[idx]=rec; else list.push(rec);
+  svcDlg.close();
+  saveLocal(); debounceSync(); renderService();
+};
 
 /* ========= START ========= */
 (function init(){
