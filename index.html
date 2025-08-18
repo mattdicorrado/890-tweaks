@@ -31,9 +31,11 @@
   .btn:hover{border-color:#344055;transform:translateY(-1px)}
   .btn.ghost{background:transparent}
   .btn.brand{background:linear-gradient(180deg,#ff7a1d,#ff6a00);color:#111;border:none}
+  .btn.del{background:#2a1a1a;border:1px solid #3a2626}
 
   .list{display:flex;flex-direction:column;gap:8px}
-  .item{position:relative;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:10px 90px 10px 10px;display:flex;gap:10px;align-items:center;cursor:pointer;transition:.15s}
+  .item{position:relative;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:10px 90px 10px 10px;display:flex;gap:10px;align-items:center;cursor:grab;transition:.15s}
+  .item:active{cursor:grabbing}
   .item:hover{transform:translateY(-1px);border-color:#2b3244}
   .item.active{outline:2px solid var(--brand);box-shadow:0 0 0 4px #ff6a001a}
   .item-title{font-weight:700}
@@ -41,6 +43,7 @@
   .lock-inline{position:absolute;right:10px;top:50%;transform:translateY(-50%);min-width:80px;text-transform:uppercase}
   .lock-inline.locked{font-weight:900;outline:2px solid #ffb3b3;background:#2a1717;border-color:#3a2626}
   .lock-inline.unlocked{opacity:.7}
+  .drag-over{outline:2px dashed #4a77ff}
 
   .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
   @media (max-width:780px){ .grid{grid-template-columns:1fr} }
@@ -80,7 +83,8 @@
   .input, .select{width:100%;padding:8px;border-radius:10px;border:1px solid var(--border);background:var(--card);color:var(--text)}
   .chips{display:flex;flex-direction:column;gap:6px}
   .chipline{display:flex;gap:6px;align-items:center}
-  .del{background:#2a1a1a;border:1px solid #3a2626}
+  .dropzone{border:1px dashed #3a4966;border-radius:10px;padding:10px;background:#151a23;display:flex;gap:8px;align-items:center;justify-content:space-between}
+  .dropzone.drag{background:#101828; outline:2px dashed #4a77ff}
 </style>
 
 <script src="https://unpkg.com/dropbox/dist/Dropbox-sdk.min.js"></script>
@@ -248,7 +252,7 @@
               <th class="nowrap">Date</th>
               <th class="nowrap">ODO (km)</th>
               <th>Items</th>
-              <th class="nowrap">Receipt Ref</th>
+              <th class="nowrap">Receipts</th>
               <th class="nowrap">By</th>
               <th>Comments</th>
               <th class="nowrap"></th>
@@ -305,7 +309,7 @@
 </dialog>
 
 <!-- SERVICE DIALOG -->
-<dialog id="serviceDlg" style="border:none;border-radius:16px;padding:0;max-width:720px;width:95%">
+<dialog id="serviceDlg" style="border:none;border-radius:16px;padding:0;max-width:760px;width:95%">
   <div class="panel" style="border-radius:16px">
     <h2 id="serviceDlgTitle">Add Service Record</h2>
 
@@ -319,13 +323,6 @@
         <input id="svcOdo" type="number" class="input mono" placeholder="e.g. 12,345"/>
       </div>
       <div style="flex:1;min-width:180px">
-        <label class="muted">Receipt Ref #</label>
-        <input id="svcReceipt" class="input" placeholder="e.g. DBX-2025-001"/>
-      </div>
-    </div>
-
-    <div class="row" style="margin-top:10px">
-      <div class="grow">
         <label class="muted">By (owner / service center)</label>
         <input id="svcBy" class="input" placeholder="Owner / KTM Dealer / Workshop"/>
       </div>
@@ -338,6 +335,18 @@
         <input id="svcNewItem" class="input" placeholder="e.g. Fork oil 5W, change; Chain clean; Brake pads…"/>
         <button class="btn" id="svcAddItem">Add item</button>
       </div>
+    </div>
+
+    <div style="margin-top:10px">
+      <label class="muted">Receipts (PDF / image)</label>
+      <div id="svcDrop" class="dropzone">
+        <span class="muted">Drag & drop files here or</span>
+        <div>
+          <input id="svcFiles" type="file" multiple accept="application/pdf,image/*" style="display:none"/>
+          <button class="btn" id="svcChoose">Choose files</button>
+        </div>
+      </div>
+      <div id="svcReceipts" class="chips" style="margin-top:8px"></div>
     </div>
 
     <div style="margin-top:10px">
@@ -354,7 +363,7 @@
 
 <script>
 /* ========= CONSTANTS ========= */
-const LOCAL_KEY = 'mdc.tuner.v8.multibike.service';
+const LOCAL_KEY = 'mdc.tuner.v9.service.uploads.reorder';
 const TOKEN_KEY = 'mdc.dbx.token';
 const PATH_KEY  = 'mdc.dbx.path';
 const DEFAULT_DBX_PATH = '/suspension.json';
@@ -379,33 +388,34 @@ const PRESETS = {
 };
 
 const RATING_CATS = [
-  'High-Speed Comfort',
-  'Singles Comfort',
-  'High-Speed Stability',
-  'Front Grip',
-  'Rear Traction',
-  'Brake Dive'
+  'High-Speed Comfort','Singles Comfort','High-Speed Stability',
+  'Front Grip','Rear Traction','Brake Dive'
 ];
 
 /* ========= STATE ========= */
 let dbx=null, syncTimer=null;
 let data={ currentBikeId:null, bikes:{}, updatedAt:new Date().toISOString() };
 
+/* temp state for service dialog */
+let svcEditingId = '';
+let svcTempReceipts = []; // [{name,path}]
+
+/* ========= HELPERS ========= */
 const $ = (id)=>document.getElementById(id);
 function uid(){ return 'id_'+Math.random().toString(36).slice(2,10); }
-
-/* ========= STATUS & STORAGE ========= */
 function setStatus(s,t){ $('syncDot').className='status-dot '+(s==='ok'?'ok':s==='sync'?'sync':'err'); $('syncText').textContent=t; }
 function showErr(m){ $('errTip').style.display='inline'; $('errTip').textContent=m||''; }
 function hideErr(){ $('errTip').style.display='none'; }
+
 function loadLocal(){ try{return JSON.parse(localStorage.getItem(LOCAL_KEY))}catch{return null} }
 function saveLocal(){ data.updatedAt=new Date().toISOString(); localStorage.setItem(LOCAL_KEY, JSON.stringify(data)); }
 
-/* ========= DROPBOX ========= */
+/* ========= DROPBOX CORE ========= */
 async function ensureDropbox(){ const token=(localStorage.getItem(TOKEN_KEY)||'').trim(); if(!token) return null; if(!dbx) dbx=new Dropbox.Dropbox({accessToken:token}); return dbx; }
 function explainDropboxError(e){ try{const s=e&&(e.status||e.statusCode)?`HTTP ${e.status||e.statusCode} `:''; if(e&&e.error) return s+(typeof e.error==='string'?e.error:(e.error.error_summary||JSON.stringify(e.error))); return s+(e&&e.message||'Unknown error');}catch{return 'Unknown error'} }
 function withTimeout(p,ms,label='operation'){return Promise.race([p,new Promise((_,rej)=>setTimeout(()=>rej(new Error(label+' timeout')),ms))])}
 function blobFromDropboxDownload(resp){ if(!resp) return null; if(resp.fileBlob instanceof Blob) return resp.fileBlob; if(resp.result && resp.result.fileBlob instanceof Blob) return resp.result.fileBlob; if(resp.fileBinary) return new Blob([resp.fileBinary]); if(resp.result && resp.result.fileBinary) return new Blob([resp.result.fileBinary]); if(resp.blob instanceof Blob) return resp.blob; if(resp.result instanceof Blob) return resp.result; if(resp instanceof Blob) return resp; return null; }
+
 async function loadFromDropboxFirst(){
   const token=(localStorage.getItem(TOKEN_KEY)||'').trim();
   const path=(localStorage.getItem(PATH_KEY)||DEFAULT_DBX_PATH).trim()||'/suspension.json';
@@ -419,10 +429,7 @@ async function loadFromDropboxFirst(){
     if(cloud && cloud.bikes){ data=cloud; saveLocal(); setStatus('ok','Loaded from Dropbox'); hideErr(); migrateIfNeeded(); return; }
     if(cloud && cloud.scenarios){ data=migrateLegacySingle(cloud); saveLocal(); setStatus('ok','Migrated legacy data'); hideErr(); return; }
     fallback(); setStatus('err','Invalid cloud data — local only');
-  }catch(e){
-    console.warn('Dropbox load failed:',e);
-    fallback(); setStatus('err','Dropbox load failed — local only'); showErr(explainDropboxError(e));
-  }
+  }catch(e){ console.warn('Dropbox load failed:',e); fallback(); setStatus('err','Dropbox load failed — local only'); showErr(explainDropboxError(e)); }
 }
 async function syncToDropbox(){
   try{
@@ -435,23 +442,24 @@ async function syncToDropbox(){
 }
 function debounceSync(){ clearTimeout(syncTimer); syncTimer=setTimeout(syncToDropbox,600); setStatus('sync','Syncing…'); }
 
-/* ========= DEFAULTS / MIGRATION ========= */
+/* ========= MIGRATION / DEFAULTS ========= */
 function defaultScenarios(){ return {
   'High Speed Naked': { front:{preload:0, comp:20, reb:18, forkHeight:0},   rear:{preload:4, lsc:20, hsc:2,   reb:18}, notes:'', ratings:{}, locked:false },
   'Loaded Touring':   { front:{preload:3, comp:15, reb:15, forkHeight:-10}, rear:{preload:10,lsc:7,  hsc:0.5, reb:15}, notes:'', ratings:{}, locked:false },
   'Enduro / Singles': { front:{preload:1, comp:18, reb:16, forkHeight:-15}, rear:{preload:5, lsc:18, hsc:1.5, reb:16}, notes:'', ratings:{}, locked:false }
 };}
-function migrateLegacySingle(single){ const id=uid(); return { currentBikeId:id, bikes:{[id]:{meta:{year:'',make:'KTM',model:'890 Adventure',rego:'',photo:''},currentScenario:single.current||'High Speed Naked',scenarios:single.scenarios||defaultScenarios(),service:[]}}, updatedAt:new Date().toISOString() }; }
+function migrateLegacySingle(single){ const id=uid(); return { currentBikeId:id, bikes:{[id]:{meta:{year:'',make:'KTM',model:'890 Adventure',rego:'',photo:''},currentScenario:single.current||'High Speed Naked',scenarios:single.scenarios||defaultScenarios(),order:Object.keys(single.scenarios||defaultScenarios()),service:[]}}, updatedAt:new Date().toISOString() }; }
 function bootstrapDefault(){
   if(!data.currentBikeId){
     const id=uid();
     data.currentBikeId=id;
-    data.bikes[id]={meta:{year:'',make:'KTM',model:'890 Adventure',rego:'',photo:''},currentScenario:'High Speed Naked',scenarios:defaultScenarios(),service:[]};
+    const scenarios=defaultScenarios();
+    data.bikes[id]={meta:{year:'',make:'KTM',model:'890 Adventure',rego:'',photo:''},currentScenario:'High Speed Naked',scenarios,order:Object.keys(scenarios),service:[]};
   }
 }
-function migrateIfNeeded(){ if(!data.bikes || !Object.keys(data.bikes).length) bootstrapDefault(); }
+function migrateIfNeeded(){ Object.values(data.bikes).forEach(b=>{ if(!b.order) b.order=Object.keys(b.scenarios||{}); }); }
 
-/* ========= CORE MODEL ========= */
+/* ========= MODEL ========= */
 function bikeIds(){ return Object.keys(data.bikes||{}); }
 function curBike(){ return data.bikes[data.currentBikeId]; }
 function curScenario(){ const b=curBike(); return b.scenarios[b.currentScenario]; }
@@ -469,7 +477,7 @@ function softness(path,val){ const arr=valuesFor(path); const n=arr.length-1||1;
 function colorFor(path,val){ const s=softness(path,val); const hue=0+120*s; return `hsl(${hue.toFixed(0)} 70% 32%)`; }
 function displayText(path,val){ const u=unitFor(path); if(u==='turns') return `${val} ${val===1?'turn':'turns'}`; if(u==='+') return `${val} +`; if(u==='clicks') return `${val} click${val===1?'':'s'}`; if(u==='mm') return `${val} mm`; return `${val} ${u}`.trim(); }
 
-/* ========= RENDERING ========= */
+/* ========= RENDER ========= */
 function renderBikeList(){
   const list=$('bikeList'); list.innerHTML='';
   bikeIds().forEach(id=>{
@@ -487,9 +495,14 @@ function renderBikeList(){
 function renderScenarioList(){
   const list=$('scenarioList'); list.innerHTML='';
   const b=curBike();
-  Object.keys(b.scenarios).forEach(name=>{
+  const names=b.order && b.order.length ? b.order : Object.keys(b.scenarios);
+
+  names.forEach(name=>{
     const s=b.scenarios[name];
-    const div=document.createElement('div'); div.className='item'+(name===b.currentScenario?' active':'');
+    const div=document.createElement('div'); 
+    div.className='item'+(name===b.currentScenario?' active':'');
+    div.draggable=true;
+    div.dataset.name=name;
     div.innerHTML=`<div><div class="item-title">${name}</div>
       <div class="item-sub">F ${s.front.preload}/${s.front.comp}/${s.front.reb}/${s.front.forkHeight}mm | R ${s.rear.preload}/${s.rear.lsc}/${s.rear.hsc}/${s.rear.reb}</div></div>`;
     const lock=document.createElement('button');
@@ -497,6 +510,23 @@ function renderScenarioList(){
     lock.textContent=s.locked?'LOCK':'lock';
     lock.onclick=(ev)=>{ ev.stopPropagation(); s.locked=!s.locked; saveLocal(); applyLockedUI(); renderScenarioList(); debounceSync(); };
     div.onclick=()=>{ b.currentScenario=name; saveLocal(); renderAll(); debounceSync(); };
+
+    // drag handlers
+    div.addEventListener('dragstart',e=>{ e.dataTransfer.setData('text/plain',name); setTimeout(()=>div.classList.add('drag-over'),0); });
+    div.addEventListener('dragend',()=>div.classList.remove('drag-over'));
+    div.addEventListener('dragover',e=>{ e.preventDefault(); div.classList.add('drag-over'); });
+    div.addEventListener('dragleave',()=>div.classList.remove('drag-over'));
+    div.addEventListener('drop',e=>{
+      e.preventDefault(); div.classList.remove('drag-over');
+      const from=e.dataTransfer.getData('text/plain'); const to=name;
+      if(!from || from===to) return;
+      const arr=b.order|| (b.order=Object.keys(b.scenarios));
+      const fi=arr.indexOf(from), ti=arr.indexOf(to);
+      if(fi<0||ti<0) return;
+      arr.splice(ti,0,arr.splice(fi,1)[0]);
+      saveLocal(); debounceSync(); renderScenarioList();
+    });
+
     div.appendChild(lock);
     list.appendChild(div);
   });
@@ -563,17 +593,17 @@ function renderService(){
   empty.style.display='none'; table.style.display='table';
   body.innerHTML='';
 
-  // newest first
   const rows=[...svc].sort((a,b)=> (b.date||'').localeCompare(a.date||''));
   rows.forEach(r=>{
     const tr=document.createElement('tr');
     const itemsText=(r.items||[]).join(' • ');
+    const receipts=(r.receipts||[]).map((rec,i)=>`<button class="btn" data-path="${rec.path}" data-name="${rec.name}" data-act="view">View ${i+1}</button>`).join(' ');
     const commentsShort=(r.comments||'').length>80 ? r.comments.slice(0,77)+'…' : (r.comments||'');
     tr.innerHTML=`
       <td class="nowrap mono">${r.date||''}</td>
       <td class="nowrap mono">${r.odo||''}</td>
       <td>${itemsText||'<span class="muted">—</span>'}</td>
-      <td class="nowrap mono">${r.receiptRef||'<span class="muted">—</span>'}</td>
+      <td class="nowrap">${receipts||'<span class="muted">—</span>'}</td>
       <td class="nowrap">${r.by||'<span class="muted">—</span>'}</td>
       <td>${commentsShort||'<span class="muted">—</span>'}</td>
       <td class="nowrap">
@@ -586,20 +616,12 @@ function renderService(){
       const list=curBike().service; const idx=list.findIndex(x=>x.id===r.id);
       if(idx>-1){ list.splice(idx,1); saveLocal(); debounceSync(); renderService(); }
     };
+    tr.querySelectorAll('[data-act="view"]').forEach(btn=>{
+      btn.onclick=()=>openTempLink(btn.dataset.path);
+    });
     body.appendChild(tr);
   });
 }
-
-function renderValues(){
-  ['front.preload','front.comp','front.reb','front.forkHeight','rear.preload','rear.lsc','rear.hsc','rear.reb'].forEach(updateOne);
-  $('currentTitle').textContent=curBike().currentScenario;
-  $('notes').value=curScenario().notes||'';
-  renderRatings();
-  applyLockedUI();
-  renderService();
-}
-
-function renderAll(){ renderBikeList(); renderScenarioList(); renderPresets(); renderValues(); }
 
 /* ========= ACTIONS ========= */
 document.addEventListener('click',e=>{
@@ -616,22 +638,31 @@ $('addScenarioBtn').onclick=()=>{
   const b=curBike(); if(b.scenarios[name]) return alert('That name already exists.');
   b.scenarios[name]=JSON.parse(JSON.stringify(PRESETS.Standard));
   b.scenarios[name].notes=''; b.scenarios[name].ratings={}; b.scenarios[name].locked=false;
+  b.order = b.order||Object.keys(b.scenarios); b.order.push(name);
   b.currentScenario=name; saveLocal(); renderAll(); debounceSync();
 };
 $('renameScenarioBtn').onclick=()=>{
   if(curScenario().locked) return alert('Unlock this scenario to rename.');
-  const b=curBike(); const newName=prompt('Rename scenario:', b.currentScenario); if(!newName||newName===b.currentScenario) return;
+  const b=curBike(); const old=b.currentScenario; const newName=prompt('Rename scenario:', old); if(!newName||newName===old) return;
   if(b.scenarios[newName]) return alert('Name already exists.');
-  b.scenarios[newName]=b.scenarios[b.currentScenario]; delete b.scenarios[b.currentScenario];
+  b.scenarios[newName]=b.scenarios[old]; delete b.scenarios[old];
+  b.order = (b.order||Object.keys(b.scenarios).concat([newName])).map(n=> n===old? newName : n);
   b.currentScenario=newName; saveLocal(); renderAll(); debounceSync();
 };
 $('deleteScenarioBtn').onclick=()=>{
   if(curScenario().locked) return alert('Unlock this scenario to delete.');
-  const b=curBike(); if(!confirm(`Delete "${b.currentScenario}"? This cannot be undone.`)) return;
-  const names=Object.keys(b.scenarios).filter(n=>n!==b.currentScenario);
-  delete b.scenarios[b.currentScenario];
-  b.currentScenario=names[0]||'New Setup';
-  if(!b.scenarios[b.currentScenario]){ b.scenarios[b.currentScenario]=JSON.parse(JSON.stringify(PRESETS.Standard)); b.scenarios[b.currentScenario].notes=''; b.scenarios[b.currentScenario].ratings={}; b.scenarios[b.currentScenario].locked=false; }
+  const b=curBike(); const cur=b.currentScenario;
+  if(!confirm(`Delete "${cur}"? This cannot be undone.`)) return;
+  delete b.scenarios[cur];
+  b.order=(b.order||[]).filter(n=>n!==cur);
+  const next=b.order[0] || Object.keys(b.scenarios)[0];
+  if(next){ b.currentScenario=next; }
+  else{
+    const name='New Setup';
+    b.scenarios[name]=JSON.parse(JSON.stringify(PRESETS.Standard));
+    b.scenarios[name].notes=''; b.scenarios[name].ratings={}; b.scenarios[name].locked=false;
+    b.order=[name]; b.currentScenario=name;
+  }
   saveLocal(); renderAll(); debounceSync();
 };
 function applyPreset(name){ const p=PRESETS[name]; if(!p) return; const s=curScenario(); s.front={...p.front}; s.rear={...p.rear}; saveLocal(); renderValues(); debounceSync(); }
@@ -640,6 +671,7 @@ function savePresetAs(name){
   if(b.scenarios[newName]) return alert('That name already exists.');
   b.scenarios[newName]=JSON.parse(JSON.stringify(PRESETS[name]));
   b.scenarios[newName].notes='(from preset)'; b.scenarios[newName].ratings={}; b.scenarios[newName].locked=false;
+  b.order = b.order||Object.keys(b.scenarios); b.order.push(newName);
   b.currentScenario=newName; saveLocal(); renderAll(); debounceSync();
 }
 
@@ -656,7 +688,11 @@ $('confirmAddBike').onclick=()=>{
   const meta={year:$('bikeYear').value.trim(),make:$('bikeMake').value.trim(),model:$('bikeModel').value.trim(),rego:$('bikeRego').value.trim(),photo:$('photoPreview').dataset.url||''};
   const id=$('addBikeDlg').dataset.editing||uid();
   if($('addBikeDlg').dataset.editing){ data.bikes[id].meta=meta; }
-  else{ data.bikes[id]={meta,currentScenario:'High Speed Naked',scenarios:defaultScenarios(),service:[]}; data.currentBikeId=id; }
+  else{
+    const scenarios=defaultScenarios();
+    data.bikes[id]={meta,currentScenario:'High Speed Naked',scenarios,order:Object.keys(scenarios),service:[]};
+    data.currentBikeId=id;
+  }
   saveLocal(); $('addBikeDlg').close(); renderAll(); debounceSync();
 };
 function openAddBikeDialog(existing=null,id=null){
@@ -674,7 +710,7 @@ $('closeSettings').onclick=()=>$('settingsDlg').close();
 $('saveSettings').onclick=()=>{ localStorage.setItem(TOKEN_KEY,($('dbxToken').value||'').trim()); localStorage.setItem(PATH_KEY,($('dbxPath').value||'').trim()||DEFAULT_DBX_PATH); dbx=null; $('settingsDlg').close(); loadFromDropboxFirst().then(()=>renderAll()); };
 $('signinBtn').onclick=()=>$('openSettings').click();
 
-/* ========= SERVICE DIALOG LOGIC ========= */
+/* ========= SERVICE DIALOG & UPLOADS ========= */
 const svcDlg=$('serviceDlg');
 $('svcCancel').onclick=()=>svcDlg.close();
 $('svcAddItem').onclick=()=>{
@@ -689,34 +725,77 @@ function addItemChip(text){
   del.onclick=()=>row.remove();
   row.appendChild(input); row.appendChild(del); wrap.appendChild(row);
 }
-function openServiceDialog(editId=null){
-  $('serviceDlgTitle').textContent= editId ? 'Edit Service Record' : 'Add Service Record';
-  svcDlg.dataset.editing= editId || '';
-  const today=new Date().toISOString().slice(0,10);
-  let rec = null;
-  if(editId){
-    rec = (curBike().service||[]).find(r=>r.id===editId);
+function renderReceiptChips(){
+  const wrap=$('svcReceipts'); wrap.innerHTML='';
+  if(!svcTempReceipts.length){ wrap.innerHTML='<span class="muted">No files uploaded yet.</span>'; return; }
+  svcTempReceipts.forEach((r,i)=>{
+    const row=document.createElement('div'); row.className='chipline';
+    const lab=document.createElement('div'); lab.textContent=r.name; lab.className='grow';
+    const view=document.createElement('button'); view.className='btn'; view.textContent='View';
+    view.onclick=()=>openTempLink(r.path);
+    const rem=document.createElement('button'); rem.className='btn del'; rem.textContent='Remove';
+    rem.onclick=()=>{ svcTempReceipts.splice(i,1); renderReceiptChips(); };
+    row.appendChild(lab); row.appendChild(view); row.appendChild(rem); wrap.appendChild(row);
+  });
+}
+$('svcChoose').onclick=()=>$('svcFiles').click();
+$('svcFiles').addEventListener('change',e=>{ if(e.target.files?.length) uploadReceiptFiles(e.target.files); e.target.value=''; });
+const dz=$('svcDrop');
+['dragenter','dragover'].forEach(ev=>dz.addEventListener(ev,e=>{e.preventDefault(); dz.classList.add('drag');}));
+['dragleave','drop'].forEach(ev=>dz.addEventListener(ev,e=>{e.preventDefault(); if(ev==='drop') return; dz.classList.remove('drag');}));
+dz.addEventListener('drop',e=>{ dz.classList.remove('drag'); const files=e.dataTransfer.files; if(files?.length) uploadReceiptFiles(files); });
+
+async function uploadReceiptFiles(fileList){
+  const cli=await ensureDropbox();
+  if(!cli){ alert('Add your Dropbox token in Settings first.'); return; }
+  setStatus('sync','Uploading receipts…');
+  for(const f of fileList){
+    const safe = f.name.replace(/[^\w.\-]+/g,'_');
+    const stamp = new Date().toISOString().replace(/[:.]/g,'-');
+    const path = `/receipts/${stamp}_${safe}`;
+    try{
+      await withTimeout(cli.filesUpload({path,contents:f,mode:{'.tag':'overwrite'},mute:true}),15000,'receipt upload');
+      svcTempReceipts.push({name:f.name,path});
+    }catch(e){ console.error('upload fail',e); alert('Upload failed: '+explainDropboxError(e)); }
   }
-  $('svcDate').value = rec?.date || today;
+  renderReceiptChips();
+  setStatus('ok','All changes saved');
+}
+async function openTempLink(path){
+  try{
+    const cli=await ensureDropbox(); if(!cli) return alert('No Dropbox token set.');
+    const r=await withTimeout(cli.filesGetTemporaryLink({path}),7000,'temp link');
+    window.open(r.result.link,'_blank');
+  }catch(e){ alert('Could not open file: '+explainDropboxError(e)); }
+}
+
+function openServiceDialog(editId=null){
+  svcEditingId = editId || '';
+  $('serviceDlgTitle').textContent= editId ? 'Edit Service Record' : 'Add Service Record';
+  const today=new Date().toISOString().slice(0,10);
+  let rec=null;
+  if(editId){ rec=(curBike().service||[]).find(r=>r.id===editId); }
+  $('svcDate').value= rec?.date || today;
   $('svcOdo').value = rec?.odo || '';
-  $('svcReceipt').value = rec?.receiptRef || '';
-  $('svcBy').value = rec?.by || '';
+  $('svcBy').value  = rec?.by || '';
   $('svcComments').value = rec?.comments || '';
   $('svcItems').innerHTML='';
   (rec?.items||[]).forEach(it=>addItemChip(it));
+  svcTempReceipts = JSON.parse(JSON.stringify(rec?.receipts||[]));
+  renderReceiptChips();
   svcDlg.showModal();
 }
 $('addServiceBtn').onclick=()=>openServiceDialog();
 
 $('svcSave').onclick=()=>{
-  const id = svcDlg.dataset.editing || uid();
+  const id = svcEditingId || uid();
   const items = [...document.querySelectorAll('#svcItems .chipline input')].map(i=>i.value.trim()).filter(Boolean);
   const rec = {
     id,
     date: $('svcDate').value || new Date().toISOString().slice(0,10),
     odo: parseInt(($('svcOdo').value||'').replace(/,/g,''),10) || 0,
     items,
-    receiptRef: $('svcReceipt').value.trim(),
+    receipts: svcTempReceipts.slice(),
     by: $('svcBy').value.trim(),
     comments: $('svcComments').value.trim()
   };
@@ -727,10 +806,14 @@ $('svcSave').onclick=()=>{
   saveLocal(); debounceSync(); renderService();
 };
 
-/* ========= START ========= */
+/* ========= INIT ========= */
+function renderValues(){ ['front.preload','front.comp','front.reb','front.forkHeight','rear.preload','rear.lsc','rear.hsc','rear.reb'].forEach(updateOne);
+  $('currentTitle').textContent=curBike().currentScenario; $('notes').value=curScenario().notes||''; renderRatings(); applyLockedUI(); renderService(); }
+function renderAll(){ renderBikeList(); renderScenarioList(); renderPresets(); renderValues(); }
+
 (function init(){
-  const local=loadLocal(); if(local) data=local; bootstrapDefault(); renderAll();
-  loadFromDropboxFirst().then(()=>{ bootstrapDefault(); renderAll(); });
+  const local=loadLocal(); if(local) data=local; bootstrapDefault(); migrateIfNeeded(); renderAll();
+  loadFromDropboxFirst().then(()=>{ migrateIfNeeded(); renderAll(); });
 })();
 </script>
 </body>
