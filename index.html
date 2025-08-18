@@ -4,15 +4,15 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>MdC Bike Tuner</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs/%3E%3Cg fill='%23ff6a00'%3E%3Crect x='26' y='4' width='12' height='10' rx='3'/%3E%3Crect x='26' y='50' width='12' height='10' rx='3'/%3E%3Crect x='14' y='14' width='36' height='8' rx='4'/%3E%3Cpath d='M18 24h28l-3 6H21z'/%3E%3Crect x='28' y='30' width='8' height='18' rx='3'/%3E%3C/g%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='%23ff6a00' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='10' cy='54' r='7'/%3E%3Ccircle cx='54' cy='10' r='7'/%3E%3Cpath d='M15 49L49 15'/%3E%3Cpath d='M20 44l24-24'/%3E%3Cpath d='M25 39l14-14'/%3E%3Crect x='13' y='25' width='16' height='10' rx='3' transform='rotate(-45 13 25)'/%3E%3Crect x='35' y='47' width='16' height='10' rx='3' transform='rotate(-45 35 47)'/%3E%3Cpath d='M10 51v6M7 54h6'/%3E%3C/g%3E%3C/svg%3E">
 <style>
   :root { --bg:#0f1115; --panel:#161a20; --muted:#8a93a6; --text:#e9edf3; --brand:#ff6a00; --ok:#20c997; --warn:#ffd43b; --err:#ff6b6b; --chip:#202633; --card:#121620; --border:#232938; }
   *{box-sizing:border-box}
   body{margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,Arial,sans-serif;color:var(--text);background:linear-gradient(120deg,#0d1016,#121823 60%,#0d1016);min-height:100vh}
   header{position:sticky;top:0;z-index:10;backdrop-filter:saturate(150%) blur(8px);background:rgba(15,17,21,.6);border-bottom:1px solid var(--border)}
   .wrap{max-width:1200px;margin:0 auto;padding:16px}
-  .title{display:flex;align-items:center;gap:12px}
-  .logo{width:36px;height:36px;display:grid;place-items:center}
+  .title{display:flex;align-items:center;gap:10px}
+  .logo{width:32px;height:32px;display:grid;place-items:center}
   .logo svg{width:100%;height:100%}
   h1{font-size:20px;margin:0}
   .status{margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap;color:var(--muted);font-size:12px}
@@ -33,16 +33,18 @@
   .btn.brand{background:linear-gradient(180deg,#ff7a1d,#ff6a00);color:#111;border:none}
 
   .list{display:flex;flex-direction:column;gap:8px}
-  .item{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:10px;display:flex;gap:10px;align-items:center;cursor:pointer;transition:.15s}
+  .item{position:relative;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:10px 90px 10px 10px;display:flex;gap:10px;align-items:center;cursor:pointer;transition:.15s}
   .item:hover{transform:translateY(-1px);border-color:#2b3244}
   .item.active{outline:2px solid var(--brand);box-shadow:0 0 0 4px #ff6a001a}
   .item-title{font-weight:700}
   .item-sub{font-size:12px;color:#9fb0c7}
-  .item-actions{margin-left:auto;display:flex;gap:6px}
+  .lock-inline{position:absolute;right:10px;top:50%;transform:translateY(-50%);min-width:80px;text-transform:uppercase}
+  .lock-inline.locked{font-weight:900;outline:2px solid #ffb3b3;background:#2a1717;border-color:#3a2626}
+  .lock-inline.unlocked{opacity:.7}
 
   .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
   @media (max-width:780px){ .grid{grid-template-columns:1fr} }
-  .card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:14px;position:relative}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:14px}
 
   .setting{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:10px;margin-bottom:10px}
   .setting h4{margin:0 0 8px;font-size:13px;color:#cfd6e6;letter-spacing:.3px;display:flex;justify-content:space-between;gap:8px}
@@ -67,27 +69,22 @@
   .starbtn{background:transparent;border:none;padding:0;cursor:pointer;display:grid;place-items:center}
   .star svg{width:22px;height:22px;fill:#3a3a3a}
   .star.on svg{fill:#ffd43b;filter:drop-shadow(0 0 4px rgba(255,212,59,.25))}
-
-  /* Lock buttons inside cards */
-  .lockbtn{position:absolute;right:12px;bottom:12px;min-width:110px}
-  .locked .lockbtn{font-weight:900; outline:2px solid #ffb3b3; background:#2a1717; border-color:#3a2626}
-  .unlocked .lockbtn{opacity:.7}
 </style>
 
-<!-- Dropbox SDK -->
 <script src="https://unpkg.com/dropbox/dist/Dropbox-sdk.min.js"></script>
 </head>
 <body>
 <header>
   <div class="wrap title">
     <div class="logo" aria-hidden="true">
-      <!-- Simple rear shock icon -->
-      <svg viewBox="0 0 64 64" fill="#ff6a00" xmlns="http://www.w3.org/2000/svg">
-        <rect x="26" y="4" width="12" height="10" rx="3"/>
-        <rect x="26" y="50" width="12" height="10" rx="3"/>
-        <rect x="14" y="14" width="36" height="8" rx="4"/>
-        <path d="M18 24h28l-3 6H21z"/>
-        <rect x="28" y="30" width="8" height="18" rx="3"/>
+      <!-- Shock outline icon (brand orange) -->
+      <svg viewBox="0 0 64 64" fill="none" stroke="#ff6a00" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="10" cy="54" r="7"/>
+        <circle cx="54" cy="10" r="7"/>
+        <path d="M15 49L49 15M20 44l24-24M25 39l14-14"/>
+        <rect x="13" y="26" width="16" height="9" rx="3" transform="rotate(-45 13 26)"/>
+        <rect x="35" y="46" width="16" height="9" rx="3" transform="rotate(-45 35 46)"/>
+        <path d="M10 51v6M7 54h6"/>
       </svg>
     </div>
     <h1>MdC Bike Tuner</h1>
@@ -129,14 +126,14 @@
         <div id="scenarioList" class="list"></div>
       </section>
 
-      <!-- PRESETS (vertical) -->
+      <!-- PRESETS -->
       <section class="panel" style="margin-top:12px">
         <h2 style="margin:0 0 8px 0">Presets</h2>
         <div id="presetCol" class="preset-col"></div>
       </section>
     </aside>
 
-    <!-- RIGHT: DETAIL -->
+    <!-- RIGHT -->
     <section class="panel" id="detailPanel">
       <h2 id="currentTitle" style="margin:0 0 10px 0">—</h2>
 
@@ -172,7 +169,7 @@
             </div>
           </div>
 
-          <!-- NEW: Fork height -->
+          <!-- Fork height −30..0 mm (0 = green) -->
           <div class="setting" data-setting="front.forkHeight">
             <h4>FORK HEIGHT <span class="suffix" id="suffix-front.forkHeight"></span></h4>
             <div class="ctrl">
@@ -181,8 +178,6 @@
               <button data-delta="1" data-path="front.forkHeight">+</button>
             </div>
           </div>
-
-          <button class="btn lockbtn" id="lockBtnFront">lock</button>
         </div>
 
         <!-- REAR -->
@@ -224,8 +219,6 @@
               <button data-delta="1" data-path="rear.reb">+</button>
             </div>
           </div>
-
-          <button class="btn lockbtn" id="lockBtnRear">lock</button>
         </div>
       </div>
 
@@ -254,7 +247,7 @@
       <label class="pill">Access token</label>
       <input id="dbxToken" class="btn" style="flex:1;text-align:left" placeholder="Paste your Dropbox token"/>
     </div>
-    <div class="help" style="margin-top:8px">Use App‑Folder token; path should be <b>/suspension.json</b>. “Sign into Dropbox” will be full OAuth in the receipts step.</div>
+    <div class="help" style="margin-top:8px">Use App‑Folder token; path should be <b>/suspension.json</b>.</div>
     <div class="row" style="margin-top:12px;justify-content:flex-end">
       <button class="btn ghost" id="closeSettings">Close</button>
       <button class="btn brand" id="saveSettings">Save</button>
@@ -291,7 +284,7 @@ const TOKEN_KEY = 'mdc.dbx.token';
 const PATH_KEY  = 'mdc.dbx.path';
 const DEFAULT_DBX_PATH = '/suspension.json';
 
-/* Ranges (incl. Fork Height −30..0, green at 0) */
+/* Ranges (incl. Fork Height −30..0, 0=green) */
 const RANGES = {
   'front.preload': { unit:'+',     values:[0,1,2,3],                                  labels:{0:'Comfort',3:'Loaded'},                 softIncreasing:false },
   'front.comp':    { unit:'clicks',values:[24,23,22,21,20,19,18,17,16,15,14,13,12,11,10,9,8,7,6,5], labels:{20:'Comfort',15:'Standard/Loaded',10:'Sport'}, softIncreasing:true  },
@@ -304,7 +297,7 @@ const RANGES = {
 };
 
 const PRESETS = {
-  'Comfort':  { front:{preload:0, comp:20, reb:18, forkHeight:0}, rear:{preload:4, lsc:20, hsc:2,   reb:18} },
+  'Comfort':  { front:{preload:0, comp:20, reb:18, forkHeight:0},   rear:{preload:4, lsc:20, hsc:2,   reb:18} },
   'Standard': { front:{preload:1, comp:15, reb:15, forkHeight:-10}, rear:{preload:4, lsc:15, hsc:1.5, reb:15} },
   'Sport':    { front:{preload:1, comp:10, reb:10, forkHeight:-20}, rear:{preload:4, lsc:10, hsc:1,   reb:10} },
   'Loaded':   { front:{preload:3, comp:15, reb:15, forkHeight:-10}, rear:{preload:10,lsc:7,  hsc:0.5, reb:15} }
@@ -320,16 +313,11 @@ const RATING_CATS = [
 ];
 
 /* ========= STATE ========= */
-let dbx = null;
-let syncTimer = null;
-let data = {
-  currentBikeId:null,
-  bikes:{},
-  updatedAt:new Date().toISOString()
-};
+let dbx=null, syncTimer=null;
+let data={ currentBikeId:null, bikes:{}, updatedAt:new Date().toISOString() };
 
 /* ========= UTILS ========= */
-const $ = (id)=>document.getElementById(id);
+const $=(id)=>document.getElementById(id);
 function uid(){ return 'b_'+Math.random().toString(36).slice(2,10); }
 function setStatus(s,t){ $('syncDot').className='status-dot '+(s==='ok'?'ok':s==='sync'?'sync':'err'); $('syncText').textContent=t; }
 function showErr(m){ $('errTip').style.display='inline'; $('errTip').textContent=m||''; }
@@ -339,31 +327,10 @@ function loadLocal(){ try{return JSON.parse(localStorage.getItem(LOCAL_KEY))}cat
 function saveLocal(){ data.updatedAt=new Date().toISOString(); localStorage.setItem(LOCAL_KEY, JSON.stringify(data)); }
 
 /* ========= DROPBOX ========= */
-async function ensureDropbox(){
-  const token=(localStorage.getItem(TOKEN_KEY)||'').trim();
-  if(!token) return null;
-  if(!dbx) dbx=new Dropbox.Dropbox({accessToken:token});
-  return dbx;
-}
-function explainDropboxError(e){
-  try{
-    const status=e&&(e.status||e.statusCode)?`HTTP ${e.status||e.statusCode} `:'';
-    if(e&&e.error) return status+(typeof e.error==='string'?e.error:(e.error.error_summary||JSON.stringify(e.error)));
-    return status+(e&&e.message||'Unknown error');
-  }catch{return 'Unknown error'}
-}
+async function ensureDropbox(){ const token=(localStorage.getItem(TOKEN_KEY)||'').trim(); if(!token) return null; if(!dbx) dbx=new Dropbox.Dropbox({accessToken:token}); return dbx; }
+function explainDropboxError(e){ try{const s=e&&(e.status||e.statusCode)?`HTTP ${e.status||e.statusCode} `:''; if(e&&e.error) return s+(typeof e.error==='string'?e.error:(e.error.error_summary||JSON.stringify(e.error))); return s+(e&&e.message||'Unknown error');}catch{return 'Unknown error'} }
 function withTimeout(p,ms,label='operation'){return Promise.race([p,new Promise((_,rej)=>setTimeout(()=>rej(new Error(label+' timeout')),ms))])}
-function blobFromDropboxDownload(resp){
-  if(!resp) return null;
-  if(resp.fileBlob instanceof Blob) return resp.fileBlob;
-  if(resp.result && resp.result.fileBlob instanceof Blob) return resp.result.fileBlob;
-  if(resp.fileBinary) return new Blob([resp.fileBinary]);
-  if(resp.result && resp.result.fileBinary) return new Blob([resp.result.fileBinary]);
-  if(resp.blob instanceof Blob) return resp.blob;
-  if(resp.result instanceof Blob) return resp.result;
-  if(resp instanceof Blob) return resp;
-  return null;
-}
+function blobFromDropboxDownload(resp){ if(!resp) return null; if(resp.fileBlob instanceof Blob) return resp.fileBlob; if(resp.result && resp.result.fileBlob instanceof Blob) return resp.result.fileBlob; if(resp.fileBinary) return new Blob([resp.fileBinary]); if(resp.result && resp.result.fileBinary) return new Blob([resp.result.fileBinary]); if(resp.blob instanceof Blob) return resp.blob; if(resp.result instanceof Blob) return resp.result; if(resp instanceof Blob) return resp; return null; }
 async function loadFromDropboxFirst(){
   const token=(localStorage.getItem(TOKEN_KEY)||'').trim();
   const path=(localStorage.getItem(PATH_KEY)||DEFAULT_DBX_PATH).trim()||'/suspension.json';
@@ -389,36 +356,18 @@ async function syncToDropbox(){
     const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
     await withTimeout(cli.filesUpload({path,contents:blob,mode:{'.tag':'overwrite'},mute:true}),7000,'Dropbox save');
     setStatus('ok','All changes saved'); hideErr();
-  }catch(e){
-    console.error('Dropbox upload failed:',e);
-    setStatus('err','Dropbox error (saved locally)'); showErr(explainDropboxError(e));
-  }
+  }catch(e){ console.error('Dropbox upload failed:',e); setStatus('err','Dropbox error (saved locally)'); showErr(explainDropboxError(e)); }
 }
 function debounceSync(){ clearTimeout(syncTimer); syncTimer=setTimeout(syncToDropbox,600); setStatus('sync','Syncing…'); }
 
 /* ========= MIGRATION / DEFAULTS ========= */
-function defaultScenarios(){
-  return {
-    'High Speed Naked': { front:{preload:0, comp:20, reb:18, forkHeight:0},  rear:{preload:4, lsc:20, hsc:2,   reb:18}, notes:'', ratings:{}, locked:false },
-    'Loaded Touring':   { front:{preload:3, comp:15, reb:15, forkHeight:-10}, rear:{preload:10,lsc:7,  hsc:0.5, reb:15}, notes:'', ratings:{}, locked:false },
-    'Enduro / Singles': { front:{preload:1, comp:18, reb:16, forkHeight:-15}, rear:{preload:5, lsc:18, hsc:1.5, reb:16}, notes:'', ratings:{}, locked:false }
-  };
-}
-function migrateLegacySingle(single){
-  const id=uid();
-  return {
-    currentBikeId:id,
-    bikes:{[id]:{meta:{year:'',make:'KTM',model:'890 Adventure',rego:'',photo:''},currentScenario:single.current||'High Speed Naked',scenarios:single.scenarios||defaultScenarios(),service:[]}},
-    updatedAt:new Date().toISOString()
-  };
-}
-function bootstrapDefault(){
-  if(!data.currentBikeId){
-    const id=uid();
-    data.currentBikeId=id;
-    data.bikes[id]={meta:{year:'',make:'KTM',model:'890 Adventure',rego:'',photo:''},currentScenario:'High Speed Naked',scenarios:defaultScenarios(),service:[]};
-  }
-}
+function defaultScenarios(){ return {
+  'High Speed Naked': { front:{preload:0, comp:20, reb:18, forkHeight:0},   rear:{preload:4, lsc:20, hsc:2,   reb:18}, notes:'', ratings:{}, locked:false },
+  'Loaded Touring':   { front:{preload:3, comp:15, reb:15, forkHeight:-10}, rear:{preload:10,lsc:7,  hsc:0.5, reb:15}, notes:'', ratings:{}, locked:false },
+  'Enduro / Singles': { front:{preload:1, comp:18, reb:16, forkHeight:-15}, rear:{preload:5, lsc:18, hsc:1.5, reb:16}, notes:'', ratings:{}, locked:false }
+};}
+function migrateLegacySingle(single){ const id=uid(); return { currentBikeId:id, bikes:{[id]:{meta:{year:'',make:'KTM',model:'890 Adventure',rego:'',photo:''},currentScenario:single.current||'High Speed Naked',scenarios:single.scenarios||defaultScenarios(),service:[]}}, updatedAt:new Date().toISOString() }; }
+function bootstrapDefault(){ if(!data.currentBikeId){ const id=uid(); data.currentBikeId=id; data.bikes[id]={meta:{year:'',make:'KTM',model:'890 Adventure',rego:'',photo:''},currentScenario:'High Speed Naked',scenarios:defaultScenarios(),service:[]}; } }
 function migrateIfNeeded(){ if(!data.bikes || !Object.keys(data.bikes).length) bootstrapDefault(); }
 
 /* ========= MODEL ========= */
@@ -448,11 +397,8 @@ function renderBikeList(){
     const meta=`${b.meta.year||''} ${b.meta.make||''} ${b.meta.model||''}`.trim();
     const sub=b.meta.rego?`Rego ${b.meta.rego}`:'';
     const thumb=b.meta.photo?`<img src="${b.meta.photo}" alt="photo" style="width:48px;height:36px;object-fit:cover;border-radius:8px;border:1px solid var(--border)">`:`<div style="width:48px;height:36px;border-radius:8px;border:1px dashed #2b3244;display:grid;place-items:center;color:#8aa;font-size:11px">no photo</div>`;
-    item.innerHTML=`${thumb}<div><div class="item-title">${meta||'Untitled Bike'}</div><div class="item-sub">${sub}</div></div>
-      <div class="item-actions"><button class="btn ghost" data-act="edit">Edit</button><button class="btn ghost danger" data-act="delete">Delete</button></div>`;
-    item.onclick=(e)=>{ if(e.target.closest('button'))return; data.currentBikeId=id; saveLocal(); renderAll(); debounceSync(); };
-    item.querySelector('[data-act="edit"]').onclick=()=>openAddBikeDialog(b,id);
-    item.querySelector('[data-act="delete"]').onclick=()=>{ if(!confirm('Delete this bike and all its scenarios?'))return; delete data.bikes[id]; const ids=bikeIds(); data.currentBikeId=ids[0]||null; if(!data.currentBikeId) bootstrapDefault(); saveLocal(); renderAll(); debounceSync(); };
+    item.innerHTML=`${thumb}<div><div class="item-title">${meta||'Untitled Bike'}</div><div class="item-sub">${sub}</div></div>`;
+    item.onclick=(e)=>{ data.currentBikeId=id; saveLocal(); renderAll(); debounceSync(); };
     list.appendChild(item);
   });
 }
@@ -462,9 +408,14 @@ function renderScenarioList(){
   Object.keys(b.scenarios).forEach(name=>{
     const s=b.scenarios[name];
     const div=document.createElement('div'); div.className='item'+(name===b.currentScenario?' active':'');
-    div.innerHTML=`<div><div class="item-title">${name}${s.locked? ' <span style="color:#ffb7b7">[locked]</span>':''}</div>
+    div.innerHTML=`<div><div class="item-title">${name}</div>
       <div class="item-sub">F ${s.front.preload}/${s.front.comp}/${s.front.reb}/${s.front.forkHeight}mm | R ${s.rear.preload}/${s.rear.lsc}/${s.rear.hsc}/${s.rear.reb}</div></div>`;
+    const lock=document.createElement('button');
+    lock.className='btn lock-inline '+(s.locked?'locked':'unlocked');
+    lock.textContent=s.locked?'LOCK':'lock';
+    lock.onclick=(ev)=>{ ev.stopPropagation(); s.locked=!s.locked; saveLocal(); applyLockedUI(); renderScenarioList(); debounceSync(); };
     div.onclick=()=>{ b.currentScenario=name; saveLocal(); renderAll(); debounceSync(); };
+    div.appendChild(lock);
     list.appendChild(div);
   });
 }
@@ -486,14 +437,14 @@ function renderPresets(){
 }
 function updateOne(path){
   const v=get(path); const el=$(path); const suf=$('suffix-'+path);
-  el.textContent=displayText(path,v)+el.innerHTML.replace(/^[^<]*/,''); // keep <small>
+  el.textContent=displayText(path,v)+el.innerHTML.replace(/^[^<]*/,'');
   el.style.background=colorFor(path,v);
   suf.textContent=labelFor(path,v);
 }
 function renderRatings(){
   const row=$('ratingsRow'); row.innerHTML='';
   const ratings=curScenario().ratings||{};
-  RATING_CATS.forEach(cat=>{
+  ['High-Speed Comfort','Singles Comfort','High-Speed Stability','Front Grip','Rear Traction','Brake Dive'].forEach(cat=>{
     const wrap=document.createElement('div'); wrap.className='row';
     wrap.style.cssText='justify-content:space-between;background:var(--card);border:1px solid var(--border);padding:8px 10px;border-radius:10px;min-width:260px;flex:1;';
     const title=document.createElement('div'); title.textContent=cat;
@@ -511,18 +462,11 @@ function renderRatings(){
 }
 function applyLockedUI(){
   const locked=!!curScenario().locked;
-  const panel=$('detailPanel');
-  panel.classList.toggle('locked',locked);
-  panel.classList.toggle('unlocked',!locked);
   document.querySelectorAll('.ctrl button').forEach(b=>b.disabled=locked);
   document.querySelectorAll('#presetCol button').forEach(b=>b.disabled=locked);
   $('notes').readOnly=locked;
   $('renameScenarioBtn').disabled=locked;
   $('deleteScenarioBtn').disabled=locked;
-
-  const txt=locked?'LOCK':'lock';
-  $('lockBtnFront').textContent=txt;
-  $('lockBtnRear').textContent=txt;
 }
 function renderValues(){
   ['front.preload','front.comp','front.reb','front.forkHeight','rear.preload','rear.lsc','rear.hsc','rear.reb'].forEach(updateOne);
@@ -537,7 +481,7 @@ function renderAll(){ renderBikeList(); renderScenarioList(); renderPresets(); r
 document.addEventListener('click',e=>{
   const btn=e.target.closest('button[data-path]'); if(!btn) return;
   if(curScenario().locked) return;
-  const path=btn.dataset.path, delta=parseInt(btn.dataset.delta|| (btn.textContent.trim()==='+'?1:-1),10);
+  const path=btn.dataset.path, delta=parseInt(btn.dataset.delta || (btn.textContent.trim()==='+'?1:-1),10);
   set(path, nextVal(path, get(path), delta));
 });
 $('notes').addEventListener('input',()=>{ if(curScenario().locked) return; curScenario().notes=$('notes').value; saveLocal(); debounceSync(); });
@@ -575,17 +519,7 @@ function savePresetAs(name){
   b.currentScenario=newName; saveLocal(); renderAll(); debounceSync();
 }
 
-/* Lock buttons in both panels */
-$('lockBtnFront').onclick=toggleLock;
-$('lockBtnRear').onclick=toggleLock;
-function toggleLock(){
-  const s=curScenario();
-  if(!s.locked){ s.locked=true; }
-  else { if(!confirm('Unlock this scenario to allow changes?')) return; s.locked=false; }
-  saveLocal(); applyLockedUI(); renderScenarioList(); debounceSync();
-}
-
-/* ========= ADD BIKE ========= */
+/* ========= BIKES ========= */
 $('addBikeBtn').onclick=()=>openAddBikeDialog();
 $('cancelAddBike').onclick=()=>$('addBikeDlg').close();
 $('bikePhoto').addEventListener('change',async(e)=>{
