@@ -316,12 +316,31 @@ async function loadFromDropboxFirst(){
     $('errTip').style.display='inline'; $('errTip').textContent='Open Settings and paste your Dropbox token.';
     return;
   }
-
+  
+function blobFromDropboxDownload(resp){
+  if (!resp) return null;
+  // Common shapes across SDK/browser combos:
+  // - resp.fileBlob (most Chromium)
+  // - resp.result.fileBlob (Safari/iOS, some SDK versions)
+  // - resp.fileBinary / resp.result.fileBinary (ArrayBuffer/bytes)
+  // - resp.blob or resp.result (direct Blob in some cases)
+  if (resp.fileBlob instanceof Blob) return resp.fileBlob;
+  if (resp.result && resp.result.fileBlob instanceof Blob) return resp.result.fileBlob;
+  if (resp.fileBinary) return new Blob([resp.fileBinary]);
+  if (resp.result && resp.result.fileBinary) return new Blob([resp.result.fileBinary]);
+  if (resp.blob instanceof Blob) return resp.blob;
+  if (resp.result instanceof Blob) return resp.result;
+  if (resp instanceof Blob) return resp;
+  return null;
+}
+  
   try{
     const cli = await ensureDropbox();
-    const file = await withTimeout(cli.filesDownload({ path }), 6000, 'Dropbox load');
-    const text = await file.fileBlob.text();
-    const cloud = JSON.parse(text);
+const resp = await withTimeout(cli.filesDownload({ path }), 6000, 'Dropbox load');
+const blob = blobFromDropboxDownload(resp);
+if (!blob) throw new Error('No file blob returned from Dropbox');
+const text = await blob.text();
+const cloud = JSON.parse(text);
     if(cloud && cloud.scenarios){
       data = cloud; saveLocal();
       setStatus('ok','Loaded from Dropbox');
@@ -583,3 +602,4 @@ $('aiSuggestBtn').onclick=()=>{
 </script>
 </body>
 </html>
+
