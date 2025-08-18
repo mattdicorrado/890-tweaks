@@ -332,12 +332,14 @@
           fallbackLocal();
           setStatus('err','Dropbox file invalid — using local data');
         }
+        
 }catch(e){
   console.warn('Dropbox load failed, using local backup:', e);
   let msg = (e && (e.error?.error_summary || e.message)) || 'unknown';
   fallbackLocal();
   setStatus('err','Dropbox load failed: ' + msg);
 }
+        
     /* ---------- UI refs ---------- */
     const els = {
       list: document.getElementById('scenarioList'),
@@ -662,3 +664,4 @@
   </script>
 </body>
 </html>
+
