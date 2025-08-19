@@ -80,7 +80,7 @@
   .muted{color:#9fb0c7}
   .mono{font-variant-numeric:tabular-nums}
   .grow{width:100%}
-  .input, .select{width:100%;padding:8px;border-radius:10px;border:1px solid var(--border);background:var(--card);color:#fff}
+  .input, .select{width:100%;padding:8px;border-radius:10px;border:1px solid var(--border);background:var(--card);color:var(--text)}
   .chips{display:flex;flex-direction:column;gap:6px}
   .chipline{display:flex;gap:6px;align-items:center}
   .dropzone{border:1px dashed #3a4966;border-radius:10px;padding:10px;background:#151a23;display:flex;gap:8px;align-items:center;justify-content:space-between}
@@ -123,10 +123,7 @@
       <section class="panel">
         <div class="row" style="justify-content:space-between;align-items:center">
           <h2 style="margin:0">Bikes</h2>
-          <div class="row">
-            <button class="btn" id="editBikeBtn">Edit Bike</button>
-            <button class="btn brand" id="addBikeBtn">+ Add Bike</button>
-          </div>
+          <button class="btn brand" id="addBikeBtn">+ Add Bike</button>
         </div>
         <div id="bikeList" class="list"></div>
       </section>
@@ -271,12 +268,12 @@
 </main>
 
 <!-- SETTINGS -->
-<dialog id="settingsDlg" style="border:none;border-radius:16px;padding:0;max-width:720px;width:95%">
+<dialog id="settingsDlg" style="border:none;border-radius:16px;padding:0;max-width:680px;width:95%">
   <div class="panel" style="border-radius:16px">
     <h2>Settings</h2>
     <div class="row">
       <label class="pill">Dropbox App Key</label>
-      <input id="dbxKey" class="input" placeholder="e.g. your_app_key"/>
+      <input id="dbxKey" class="input" placeholder="e.g. gdv4lqnnvyyuakk"/>
     </div>
     <div class="row" style="margin-top:10px">
       <label class="pill">Access token (optional)</label>
@@ -286,12 +283,8 @@
       <label class="pill">Dropbox file path</label>
       <input id="dbxPath" class="input" placeholder="/suspension.json"/>
     </div>
-    <div class="row" style="margin-top:10px">
-      <label class="pill">Current page URL (use as Redirect URI)</label>
-      <input id="currentUrl" class="input" readonly/>
-    </div>
     <div class="help" style="margin-top:8px">
-      Add the URL above to your Dropbox app’s <b>Redirect URIs</b>, exactly as shown (HTTPS, trailing slash, no hash or query). Enable <b>Implicit Grant</b>.
+      Redirect URI must equal this page URL. Add it to your Dropbox app’s allowed redirect URIs. App should be <b>App Folder</b> with content read/write scopes.
     </div>
     <div class="row" style="margin-top:12px;justify-content:flex-end">
       <button class="btn ghost" id="closeSettings">Close</button>
@@ -300,7 +293,7 @@
   </div>
 </dialog>
 
-<!-- ADD / EDIT BIKE -->
+<!-- ADD BIKE -->
 <dialog id="addBikeDlg" style="border:none;border-radius:16px;padding:0;max-width:640px;width:95%">
   <div class="panel" style="border-radius:16px">
     <h2 id="addBikeTitle">Add Bike</h2>
@@ -381,7 +374,7 @@
 
 <script>
 /* ========= KEYS ========= */
-const LOCAL_KEY = 'mdc.tuner.v11.oauth.editbike';
+const LOCAL_KEY = 'mdc.tuner.v10.oauth.hours';
 const TOKEN_KEY = 'mdc.dbx.token';
 const PATH_KEY  = 'mdc.dbx.path';
 const KEY_KEY   = 'mdc.dbx.key';
@@ -406,7 +399,10 @@ const PRESETS = {
   'Loaded':   { front:{preload:3, comp:15, reb:15, forkHeight:-10}, rear:{preload:10,lsc:7,  hsc:0.5, reb:15} }
 };
 
-const RATING_CATS = ['High-Speed Comfort','Singles Comfort','High-Speed Stability','Front Grip','Rear Traction','Brake Dive'];
+const RATING_CATS = [
+  'High-Speed Comfort','Singles Comfort','High-Speed Stability',
+  'Front Grip','Rear Traction','Brake Dive'
+];
 
 /* ========= STATE ========= */
 let dbx=null, syncTimer=null;
@@ -518,7 +514,6 @@ function renderBikeList(){
   });
 }
 
-/* ========= SCENARIOS (with drag reorder) ========= */
 function renderScenarioList(){
   const list=$('scenarioList'); list.innerHTML='';
   const b=curBike();
@@ -559,7 +554,6 @@ function renderScenarioList(){
   });
 }
 
-/* ========= PRESETS ========= */
 function renderPresets(){
   const col=$('presetCol'); col.innerHTML='';
   Object.entries(PRESETS).forEach(([name,sc])=>{
@@ -577,13 +571,14 @@ function renderPresets(){
   });
 }
 
-/* ========= RIGHT PANE ========= */
+/* ========= RENDER: RIGHT ======== */
 function updateOne(path){
   const v=get(path); const el=$(path); const suf=$('suffix-'+path);
   el.textContent=displayText(path,v)+el.innerHTML.replace(/^[^<]*/,'');
   el.style.background=colorFor(path,v);
   suf.textContent=labelFor(path,v);
 }
+
 function renderRatings(){
   const row=$('ratingsRow'); row.innerHTML='';
   const ratings=curScenario().ratings||{};
@@ -603,6 +598,7 @@ function renderRatings(){
     wrap.appendChild(title); wrap.appendChild(stars); row.appendChild(wrap);
   });
 }
+
 function applyLockedUI(){
   const locked=!!curScenario().locked;
   document.querySelectorAll('.ctrl button').forEach(b=>b.disabled=locked);
@@ -704,45 +700,31 @@ function savePresetAs(name){
   b.currentScenario=newName; saveLocal(); renderAll(); debounceSync();
 }
 
-/* Bikes CRUD (Add + Edit) */
-$('addBikeBtn').onclick=()=>openAddBikeDialog();   // add mode
-$('editBikeBtn').onclick=()=>{
-  const id=data.currentBikeId; if(!id) return alert('Select a bike first.');
-  openAddBikeDialog(data.bikes[id], id);          // edit mode
-};
+/* Bikes CRUD (fixed) */
+$('addBikeBtn').onclick=()=>openAddBikeDialog();
 $('cancelAddBike').onclick=()=>$('addBikeDlg').close();
 $('bikePhoto').addEventListener('change',async(e)=>{
   const f=e.target.files&&e.target.files[0]; if(!f) return;
   const url=await fileToDataUrl(f);
-  $('photoPreview').innerHTML=`<img src="${url}" alt="photo" style="width:100%;height:100%;object-fit:cover">`;
+  $('photoPreview').innerHTML=`<img src="${url}" alt="photo">`;
   $('photoPreview').dataset.url=url;
 });
 $('confirmAddBike').onclick=()=>{
   const meta={year:$('bikeYear').value.trim(),make:$('bikeMake').value.trim(),model:$('bikeModel').value.trim(),rego:$('bikeRego').value.trim(),photo:$('photoPreview').dataset.url||''};
-  const editingId = $('addBikeDlg').dataset.editing || '';
-  if(editingId){
-    data.bikes[editingId].meta = meta;
-  }else{
-    const id=uid();
-    const scenarios=defaultScenarios();
-    data.bikes[id]={meta,currentScenario:'High Speed Naked',scenarios,order:Object.keys(scenarios),service:[]};
-    data.currentBikeId=id;
-  }
-  saveLocal(); $('addBikeDlg').close(); renderAll(); debounceSync();
+  const id=uid();
+  const scenarios=defaultScenarios();
+  data.bikes[id]={meta,currentScenario:'High Speed Naked',scenarios,order:Object.keys(scenarios),service:[]};
+  data.currentBikeId=id;
+  saveLocal();
+  $('addBikeDlg').close();
+  renderAll();
+  debounceSync();
 };
-function openAddBikeDialog(existing=null,id=null){
-  $('bikeYear').value=existing?.meta.year||''; $('bikeMake').value=existing?.meta.make||''; $('bikeModel').value=existing?.meta.model||''; $('bikeRego').value=existing?.meta.rego||'';
-  $('photoPreview').innerHTML=existing?.meta.photo?`<img src="${existing.meta.photo}" style="width:100%;height:100%;object-fit:cover">`:'Drop or pick an image';
-  $('photoPreview').dataset.url=existing?.meta.photo||'';
-  if(id){
-    $('addBikeDlg').dataset.editing=id;
-    $('addBikeTitle').textContent='Edit Bike';
-    $('confirmAddBike').textContent='Save Changes';
-  }else{
-    delete $('addBikeDlg').dataset.editing;
-    $('addBikeTitle').textContent='Add Bike';
-    $('confirmAddBike').textContent='Add Bike';
-  }
+function openAddBikeDialog(){
+  $('bikeYear').value=''; $('bikeMake').value=''; $('bikeModel').value=''; $('bikeRego').value='';
+  $('photoPreview').innerHTML='Drop or pick an image'; $('photoPreview').dataset.url='';
+  $('addBikeTitle').textContent='Add Bike';
+  $('confirmAddBike').textContent='Add Bike';
   $('addBikeDlg').showModal();
 }
 function fileToDataUrl(file){ return new Promise((res,rej)=>{const r=new FileReader(); r.onload=()=>res(r.result); r.onerror=rej; r.readAsDataURL(file);}); }
@@ -752,7 +734,6 @@ $('openSettings').onclick=()=>{
   $('dbxKey').value=localStorage.getItem(KEY_KEY)||'';
   $('dbxToken').value=localStorage.getItem(TOKEN_KEY)||'';
   $('dbxPath').value=localStorage.getItem(PATH_KEY)||DEFAULT_DBX_PATH;
-  $('currentUrl').value=location.origin + location.pathname;
   $('settingsDlg').showModal();
 };
 $('closeSettings').onclick=()=>$('settingsDlg').close();
@@ -760,15 +741,20 @@ $('saveSettings').onclick=()=>{
   localStorage.setItem(KEY_KEY,($('dbxKey').value||'').trim());
   localStorage.setItem(TOKEN_KEY,($('dbxToken').value||'').trim());
   localStorage.setItem(PATH_KEY,($('dbxPath').value||'').trim()||DEFAULT_DBX_PATH);
-  dbx=null; $('settingsDlg').close(); loadFromDropboxFirst().then(()=>renderAll());
+  dbx=null;
+  $('settingsDlg').close();
+  loadFromDropboxFirst().then(()=>renderAll());
 };
 
 /* Sign in via OAuth (separate from Settings) */
 $('signinBtn').onclick=async()=>{
   try{
     const key=(localStorage.getItem(KEY_KEY)||'').trim();
-    if(!key) return alert('Add your Dropbox App Key in Settings first.');
-    const redirect=location.origin+location.pathname; // must exactly match Dropbox Redirect URI
+    if(!key){
+      alert('Add your Dropbox App Key in Settings first.');
+      return;
+    }
+    const redirect=location.origin+location.pathname; // must be whitelisted
     const auth=new Dropbox.DropboxAuth({ clientId:key });
     const url=await auth.getAuthenticationUrl(redirect, undefined, 'token'); // implicit grant
     location.href=url;
@@ -889,13 +875,7 @@ function renderAll(){ renderBikeList(); renderScenarioList(); renderPresets(); r
 /* ========= INIT ========= */
 (function init(){
   const local=loadLocal(); if(local) data=local; bootstrapDefault(); migrateIfNeeded(); renderAll();
-  // show current URL in settings for easy copy
-  const s=document.getElementById('currentUrl'); if(s) s.value=location.origin+location.pathname;
   loadFromDropboxFirst().then(()=>{ migrateIfNeeded(); renderAll(); });
-  // OAuth error hint if on http or wrong host (GitHub Pages must be https)
-  if(location.protocol!=='https:' && location.hostname!=='localhost'){
-    showErr('Use HTTPS hosting (GitHub Pages) for Dropbox OAuth.');
-  }
 })();
 </script>
 </body>
