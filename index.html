@@ -251,6 +251,7 @@
             <tr class="muted">
               <th class="nowrap">Date</th>
               <th class="nowrap">ODO (km)</th>
+              <th class="nowrap">Hours (h)</th>
               <th>Items</th>
               <th class="nowrap">Receipts</th>
               <th class="nowrap">By</th>
@@ -267,18 +268,24 @@
 </main>
 
 <!-- SETTINGS -->
-<dialog id="settingsDlg" style="border:none;border-radius:16px;padding:0;max-width:620px;width:95%">
+<dialog id="settingsDlg" style="border:none;border-radius:16px;padding:0;max-width:680px;width:95%">
   <div class="panel" style="border-radius:16px">
     <h2>Settings</h2>
     <div class="row">
-      <label class="pill">Dropbox file path</label>
-      <input id="dbxPath" class="input" />
+      <label class="pill">Dropbox App Key</label>
+      <input id="dbxKey" class="input" placeholder="e.g. gdv4lqnnvyyuakk"/>
     </div>
     <div class="row" style="margin-top:10px">
-      <label class="pill">Access token</label>
-      <input id="dbxToken" class="input" placeholder="Paste your Dropbox token"/>
+      <label class="pill">Access token (optional)</label>
+      <input id="dbxToken" class="input" placeholder="Paste a long‑lived token OR use Sign in"/>
     </div>
-    <div class="help" style="margin-top:8px">Use App‑Folder token; path should be <b>/suspension.json</b>.</div>
+    <div class="row" style="margin-top:10px">
+      <label class="pill">Dropbox file path</label>
+      <input id="dbxPath" class="input" placeholder="/suspension.json"/>
+    </div>
+    <div class="help" style="margin-top:8px">
+      Redirect URI must equal this page URL. Add it to your Dropbox app’s allowed redirect URIs. App should be <b>App Folder</b> with content read/write scopes.
+    </div>
     <div class="row" style="margin-top:12px;justify-content:flex-end">
       <button class="btn ghost" id="closeSettings">Close</button>
       <button class="btn brand" id="saveSettings">Save</button>
@@ -289,7 +296,7 @@
 <!-- ADD BIKE -->
 <dialog id="addBikeDlg" style="border:none;border-radius:16px;padding:0;max-width:640px;width:95%">
   <div class="panel" style="border-radius:16px">
-    <h2>Add Bike</h2>
+    <h2 id="addBikeTitle">Add Bike</h2>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <div><label class="muted">Year</label><input id="bikeYear" type="number" placeholder="2023" class="input"/></div>
       <div><label class="muted">Make</label><input id="bikeMake" placeholder="KTM" class="input"/></div>
@@ -314,15 +321,19 @@
     <h2 id="serviceDlgTitle">Add Service Record</h2>
 
     <div class="row">
-      <div style="flex:1;min-width:180px">
+      <div style="flex:1;min-width:160px">
         <label class="muted">Date</label>
         <input id="svcDate" type="date" class="input"/>
       </div>
-      <div style="flex:1;min-width:180px">
+      <div style="flex:1;min-width:140px">
         <label class="muted">ODO (km)</label>
         <input id="svcOdo" type="number" class="input mono" placeholder="e.g. 12,345"/>
       </div>
-      <div style="flex:1;min-width:180px">
+      <div style="flex:1;min-width:140px">
+        <label class="muted">Hours (h)</label>
+        <input id="svcHours" type="number" class="input mono" placeholder="e.g. 250"/>
+      </div>
+      <div style="flex:1;min-width:200px">
         <label class="muted">By (owner / service center)</label>
         <input id="svcBy" class="input" placeholder="Owner / KTM Dealer / Workshop"/>
       </div>
@@ -362,22 +373,23 @@
 </dialog>
 
 <script>
-/* ========= CONSTANTS ========= */
-const LOCAL_KEY = 'mdc.tuner.v9.service.uploads.reorder';
+/* ========= KEYS ========= */
+const LOCAL_KEY = 'mdc.tuner.v10.oauth.hours';
 const TOKEN_KEY = 'mdc.dbx.token';
 const PATH_KEY  = 'mdc.dbx.path';
+const KEY_KEY   = 'mdc.dbx.key';
 const DEFAULT_DBX_PATH = '/suspension.json';
 
-/* Ranges (incl. Fork Height −30..0, 0=green) */
+/* ========= RANGES ========= */
 const RANGES = {
-  'front.preload': { unit:'+',     values:[0,1,2,3],                                  labels:{0:'Comfort',3:'Loaded'},                 softIncreasing:false },
-  'front.comp':    { unit:'clicks',values:[24,23,22,21,20,19,18,17,16,15,14,13,12,11,10,9,8,7,6,5], labels:{20:'Comfort',15:'Standard/Loaded',10:'Sport'}, softIncreasing:true  },
-  'front.reb':     { unit:'clicks',values:[22,21,20,19,18,17,16,15,14,13,12,11,10,9,8,7,6,5],     labels:{18:'Comfort',15:'Standard/Loaded',10:'Sport'}, softIncreasing:true  },
-  'front.forkHeight':{unit:'mm',   values:Array.from({length:31},(_,i)=>-30+i),        labels:{0:'Flush'}, softIncreasing:true },
-  'rear.preload':  { unit:'turns', values:[1,2,3,4,5,6,7,8,9,10,11,12],              labels:{4:'Comf/Std/Sport',10:'Loaded'},         softIncreasing:false },
-  'rear.lsc':      { unit:'clicks',values:[24,23,22,21,20,19,18,17,16,15,14,13,12,11,10,9,8,7,6,5,4], labels:{20:'Comfort',15:'Standard',10:'Sport',7:'Full Payload'}, softIncreasing:true },
-  'rear.hsc':      { unit:'turns', values:[2,1.5,1,0.5],                              labels:{2:'Comfort',1.5:'Standard',1:'Sport',0.5:'Loaded'}, softIncreasing:true },
-  'rear.reb':      { unit:'clicks',values:[22,21,20,19,18,17,16,15,14,13,12,11,10,9,8,7,6,5],     labels:{18:'Comfort',15:'Standard/Loaded',10:'Sport'}, softIncreasing:true  }
+  'front.preload': { unit:'+', values:[0,1,2,3], labels:{0:'Comfort',3:'Loaded'}, softIncreasing:false },
+  'front.comp': { unit:'clicks', values:[24,23,22,21,20,19,18,17,16,15,14,13,12,11,10,9,8,7,6,5], labels:{20:'Comfort',15:'Standard/Loaded',10:'Sport'}, softIncreasing:true },
+  'front.reb': { unit:'clicks', values:[22,21,20,19,18,17,16,15,14,13,12,11,10,9,8,7,6,5], labels:{18:'Comfort',15:'Standard/Loaded',10:'Sport'}, softIncreasing:true },
+  'front.forkHeight': { unit:'mm', values:Array.from({length:31},(_,i)=>-30+i), labels:{0:'Flush'}, softIncreasing:true },
+  'rear.preload': { unit:'turns', values:[1,2,3,4,5,6,7,8,9,10,11,12], labels:{4:'Comf/Std/Sport',10:'Loaded'}, softIncreasing:false },
+  'rear.lsc': { unit:'clicks', values:[24,23,22,21,20,19,18,17,16,15,14,13,12,11,10,9,8,7,6,5,4], labels:{20:'Comfort',15:'Standard',10:'Sport',7:'Full Payload'}, softIncreasing:true },
+  'rear.hsc': { unit:'turns', values:[2,1.5,1,0.5], labels:{2:'Comfort',1.5:'Standard',1:'Sport',0.5:'Loaded'}, softIncreasing:true },
+  'rear.reb': { unit:'clicks', values:[22,21,20,19,18,17,16,15,14,13,12,11,10,9,8,7,6,5], labels:{18:'Comfort',15:'Standard/Loaded',10:'Sport'}, softIncreasing:true }
 };
 
 const PRESETS = {
@@ -395,32 +407,33 @@ const RATING_CATS = [
 /* ========= STATE ========= */
 let dbx=null, syncTimer=null;
 let data={ currentBikeId:null, bikes:{}, updatedAt:new Date().toISOString() };
-
-/* temp state for service dialog */
 let svcEditingId = '';
-let svcTempReceipts = []; // [{name,path}]
+let svcTempReceipts = [];
 
 /* ========= HELPERS ========= */
-const $ = (id)=>document.getElementById(id);
-function uid(){ return 'id_'+Math.random().toString(36).slice(2,10); }
+const $ = id => document.getElementById(id);
+const uid = () => 'id_'+Math.random().toString(36).slice(2,10);
 function setStatus(s,t){ $('syncDot').className='status-dot '+(s==='ok'?'ok':s==='sync'?'sync':'err'); $('syncText').textContent=t; }
 function showErr(m){ $('errTip').style.display='inline'; $('errTip').textContent=m||''; }
 function hideErr(){ $('errTip').style.display='none'; }
-
 function loadLocal(){ try{return JSON.parse(localStorage.getItem(LOCAL_KEY))}catch{return null} }
 function saveLocal(){ data.updatedAt=new Date().toISOString(); localStorage.setItem(LOCAL_KEY, JSON.stringify(data)); }
-
-/* ========= DROPBOX CORE ========= */
-async function ensureDropbox(){ const token=(localStorage.getItem(TOKEN_KEY)||'').trim(); if(!token) return null; if(!dbx) dbx=new Dropbox.Dropbox({accessToken:token}); return dbx; }
-function explainDropboxError(e){ try{const s=e&&(e.status||e.statusCode)?`HTTP ${e.status||e.statusCode} `:''; if(e&&e.error) return s+(typeof e.error==='string'?e.error:(e.error.error_summary||JSON.stringify(e.error))); return s+(e&&e.message||'Unknown error');}catch{return 'Unknown error'} }
 function withTimeout(p,ms,label='operation'){return Promise.race([p,new Promise((_,rej)=>setTimeout(()=>rej(new Error(label+' timeout')),ms))])}
+function explainDropboxError(e){ try{const s=e&&(e.status||e.statusCode)?`HTTP ${e.status||e.statusCode} `:''; if(e&&e.error) return s+(typeof e.error==='string'?e.error:(e.error.error_summary||JSON.stringify(e.error))); return s+(e&&e.message||'Unknown error');}catch{return 'Unknown error'} }
 function blobFromDropboxDownload(resp){ if(!resp) return null; if(resp.fileBlob instanceof Blob) return resp.fileBlob; if(resp.result && resp.result.fileBlob instanceof Blob) return resp.result.fileBlob; if(resp.fileBinary) return new Blob([resp.fileBinary]); if(resp.result && resp.result.fileBinary) return new Blob([resp.result.fileBinary]); if(resp.blob instanceof Blob) return resp.blob; if(resp.result instanceof Blob) return resp.result; if(resp instanceof Blob) return resp; return null; }
 
+/* ========= DROPBOX ========= */
+async function ensureDropbox(){
+  const token=(localStorage.getItem(TOKEN_KEY)||'').trim();
+  if(!token) return null;
+  if(!dbx) dbx=new Dropbox.Dropbox({accessToken:token});
+  return dbx;
+}
 async function loadFromDropboxFirst(){
   const token=(localStorage.getItem(TOKEN_KEY)||'').trim();
   const path=(localStorage.getItem(PATH_KEY)||DEFAULT_DBX_PATH).trim()||'/suspension.json';
   const fallback=()=>{const local=loadLocal(); if(local) data=local; else bootstrapDefault();};
-  if(!token){ fallback(); setStatus('err','No Dropbox token — local only'); showErr('Open Settings and paste token.'); return; }
+  if(!token){ fallback(); setStatus('err','No Dropbox token — local only'); showErr('Open Settings to set App Key and sign in, or paste a token.'); return; }
   try{
     const cli=await ensureDropbox();
     const resp=await withTimeout(cli.filesDownload({path}),7000,'Dropbox load');
@@ -442,7 +455,16 @@ async function syncToDropbox(){
 }
 function debounceSync(){ clearTimeout(syncTimer); syncTimer=setTimeout(syncToDropbox,600); setStatus('sync','Syncing…'); }
 
-/* ========= MIGRATION / DEFAULTS ========= */
+/* OAuth: capture token in URL fragment after redirect */
+(function captureTokenFromHash(){
+  if(location.hash && location.hash.includes('access_token=')){
+    const params=new URLSearchParams(location.hash.slice(1));
+    const token=params.get('access_token');
+    if(token){ localStorage.setItem(TOKEN_KEY, token); history.replaceState(null, '', location.pathname+location.search); }
+  }
+})();
+
+/* ========= DATA BOOTSTRAP ========= */
 function defaultScenarios(){ return {
   'High Speed Naked': { front:{preload:0, comp:20, reb:18, forkHeight:0},   rear:{preload:4, lsc:20, hsc:2,   reb:18}, notes:'', ratings:{}, locked:false },
   'Loaded Touring':   { front:{preload:3, comp:15, reb:15, forkHeight:-10}, rear:{preload:10,lsc:7,  hsc:0.5, reb:15}, notes:'', ratings:{}, locked:false },
@@ -452,21 +474,21 @@ function migrateLegacySingle(single){ const id=uid(); return { currentBikeId:id,
 function bootstrapDefault(){
   if(!data.currentBikeId){
     const id=uid();
-    data.currentBikeId=id;
     const scenarios=defaultScenarios();
+    data.currentBikeId=id;
     data.bikes[id]={meta:{year:'',make:'KTM',model:'890 Adventure',rego:'',photo:''},currentScenario:'High Speed Naked',scenarios,order:Object.keys(scenarios),service:[]};
   }
 }
-function migrateIfNeeded(){ Object.values(data.bikes).forEach(b=>{ if(!b.order) b.order=Object.keys(b.scenarios||{}); }); }
+function migrateIfNeeded(){ Object.values(data.bikes).forEach(b=>{ if(!b.order) b.order=Object.keys(b.scenarios||{}); if(!b.service) b.service=[]; }); }
 
-/* ========= MODEL ========= */
+/* ========= ACCESSORS ========= */
 function bikeIds(){ return Object.keys(data.bikes||{}); }
 function curBike(){ return data.bikes[data.currentBikeId]; }
 function curScenario(){ const b=curBike(); return b.scenarios[b.currentScenario]; }
 function get(path){ const [g,k]=path.split('.'); return curScenario()[g][k]; }
 function set(path,val){ const [g,k]=path.split('.'); curScenario()[g][k]=val; saveLocal(); updateOne(path); debounceSync(); }
 
-/* ========= RANGE & COLOR ========= */
+/* ========= RANGE / COLOR ========= */
 function valuesFor(path){ return RANGES[path].values; }
 function labelsFor(path){ return RANGES[path].labels||{}; }
 function unitFor(path){ return RANGES[path].unit||''; }
@@ -477,7 +499,7 @@ function softness(path,val){ const arr=valuesFor(path); const n=arr.length-1||1;
 function colorFor(path,val){ const s=softness(path,val); const hue=0+120*s; return `hsl(${hue.toFixed(0)} 70% 32%)`; }
 function displayText(path,val){ const u=unitFor(path); if(u==='turns') return `${val} ${val===1?'turn':'turns'}`; if(u==='+') return `${val} +`; if(u==='clicks') return `${val} click${val===1?'':'s'}`; if(u==='mm') return `${val} mm`; return `${val} ${u}`.trim(); }
 
-/* ========= RENDER ========= */
+/* ========= RENDER: LEFT ======== */
 function renderBikeList(){
   const list=$('bikeList'); list.innerHTML='';
   bikeIds().forEach(id=>{
@@ -549,6 +571,7 @@ function renderPresets(){
   });
 }
 
+/* ========= RENDER: RIGHT ======== */
 function updateOne(path){
   const v=get(path); const el=$(path); const suf=$('suffix-'+path);
   el.textContent=displayText(path,v)+el.innerHTML.replace(/^[^<]*/,'');
@@ -602,6 +625,7 @@ function renderService(){
     tr.innerHTML=`
       <td class="nowrap mono">${r.date||''}</td>
       <td class="nowrap mono">${r.odo||''}</td>
+      <td class="nowrap mono">${r.hours ?? ''}</td>
       <td>${itemsText||'<span class="muted">—</span>'}</td>
       <td class="nowrap">${receipts||'<span class="muted">—</span>'}</td>
       <td class="nowrap">${r.by||'<span class="muted">—</span>'}</td>
@@ -623,7 +647,7 @@ function renderService(){
   });
 }
 
-/* ========= ACTIONS ========= */
+/* ========= BUTTONS & ACTIONS ========= */
 document.addEventListener('click',e=>{
   const btn=e.target.closest('button[data-path]'); if(!btn) return;
   if(curScenario().locked) return;
@@ -632,6 +656,7 @@ document.addEventListener('click',e=>{
 });
 $('notes').addEventListener('input',()=>{ if(curScenario().locked) return; curScenario().notes=$('notes').value; saveLocal(); debounceSync(); });
 
+/* Scenarios CRUD */
 $('addScenarioBtn').onclick=()=>{
   if(curScenario().locked) return alert('Unlock current scenario first.');
   const name=prompt('New scenario name:','Custom Setup'); if(!name) return;
@@ -675,7 +700,7 @@ function savePresetAs(name){
   b.currentScenario=newName; saveLocal(); renderAll(); debounceSync();
 }
 
-/* ========= BIKES ========= */
+/* Bikes CRUD (fixed) */
 $('addBikeBtn').onclick=()=>openAddBikeDialog();
 $('cancelAddBike').onclick=()=>$('addBikeDlg').close();
 $('bikePhoto').addEventListener('change',async(e)=>{
@@ -686,31 +711,59 @@ $('bikePhoto').addEventListener('change',async(e)=>{
 });
 $('confirmAddBike').onclick=()=>{
   const meta={year:$('bikeYear').value.trim(),make:$('bikeMake').value.trim(),model:$('bikeModel').value.trim(),rego:$('bikeRego').value.trim(),photo:$('photoPreview').dataset.url||''};
-  const id=$('addBikeDlg').dataset.editing||uid();
-  if($('addBikeDlg').dataset.editing){ data.bikes[id].meta=meta; }
-  else{
-    const scenarios=defaultScenarios();
-    data.bikes[id]={meta,currentScenario:'High Speed Naked',scenarios,order:Object.keys(scenarios),service:[]};
-    data.currentBikeId=id;
-  }
-  saveLocal(); $('addBikeDlg').close(); renderAll(); debounceSync();
+  const id=uid();
+  const scenarios=defaultScenarios();
+  data.bikes[id]={meta,currentScenario:'High Speed Naked',scenarios,order:Object.keys(scenarios),service:[]};
+  data.currentBikeId=id;
+  saveLocal();
+  $('addBikeDlg').close();
+  renderAll();
+  debounceSync();
 };
-function openAddBikeDialog(existing=null,id=null){
-  $('bikeYear').value=existing?.meta.year||''; $('bikeMake').value=existing?.meta.make||''; $('bikeModel').value=existing?.meta.model||''; $('bikeRego').value=existing?.meta.rego||'';
-  $('photoPreview').innerHTML=existing?.meta.photo?`<img src="${existing.meta.photo}">`:'Drop or pick an image';
-  $('photoPreview').dataset.url=existing?.meta.photo||'';
-  if(id){ $('addBikeDlg').dataset.editing=id; } else { delete $('addBikeDlg').dataset.editing; }
+function openAddBikeDialog(){
+  $('bikeYear').value=''; $('bikeMake').value=''; $('bikeModel').value=''; $('bikeRego').value='';
+  $('photoPreview').innerHTML='Drop or pick an image'; $('photoPreview').dataset.url='';
+  $('addBikeTitle').textContent='Add Bike';
+  $('confirmAddBike').textContent='Add Bike';
   $('addBikeDlg').showModal();
 }
 function fileToDataUrl(file){ return new Promise((res,rej)=>{const r=new FileReader(); r.onload=()=>res(r.result); r.onerror=rej; r.readAsDataURL(file);}); }
 
-/* ========= SETTINGS ========= */
-$('openSettings').onclick=()=>{ $('dbxToken').value=localStorage.getItem(TOKEN_KEY)||''; $('dbxPath').value=localStorage.getItem(PATH_KEY)||DEFAULT_DBX_PATH; $('settingsDlg').showModal(); };
+/* SETTINGS */
+$('openSettings').onclick=()=>{
+  $('dbxKey').value=localStorage.getItem(KEY_KEY)||'';
+  $('dbxToken').value=localStorage.getItem(TOKEN_KEY)||'';
+  $('dbxPath').value=localStorage.getItem(PATH_KEY)||DEFAULT_DBX_PATH;
+  $('settingsDlg').showModal();
+};
 $('closeSettings').onclick=()=>$('settingsDlg').close();
-$('saveSettings').onclick=()=>{ localStorage.setItem(TOKEN_KEY,($('dbxToken').value||'').trim()); localStorage.setItem(PATH_KEY,($('dbxPath').value||'').trim()||DEFAULT_DBX_PATH); dbx=null; $('settingsDlg').close(); loadFromDropboxFirst().then(()=>renderAll()); };
-$('signinBtn').onclick=()=>$('openSettings').click();
+$('saveSettings').onclick=()=>{
+  localStorage.setItem(KEY_KEY,($('dbxKey').value||'').trim());
+  localStorage.setItem(TOKEN_KEY,($('dbxToken').value||'').trim());
+  localStorage.setItem(PATH_KEY,($('dbxPath').value||'').trim()||DEFAULT_DBX_PATH);
+  dbx=null;
+  $('settingsDlg').close();
+  loadFromDropboxFirst().then(()=>renderAll());
+};
 
-/* ========= SERVICE DIALOG & UPLOADS ========= */
+/* Sign in via OAuth (separate from Settings) */
+$('signinBtn').onclick=async()=>{
+  try{
+    const key=(localStorage.getItem(KEY_KEY)||'').trim();
+    if(!key){
+      alert('Add your Dropbox App Key in Settings first.');
+      return;
+    }
+    const redirect=location.origin+location.pathname; // must be whitelisted
+    const auth=new Dropbox.DropboxAuth({ clientId:key });
+    const url=await auth.getAuthenticationUrl(redirect, undefined, 'token'); // implicit grant
+    location.href=url;
+  }catch(e){
+    alert('Could not start Dropbox sign-in: '+(e?.message||e));
+  }
+};
+
+/* SERVICE DIALOG & UPLOADS */
 const svcDlg=$('serviceDlg');
 $('svcCancel').onclick=()=>svcDlg.close();
 $('svcAddItem').onclick=()=>{
@@ -747,7 +800,7 @@ dz.addEventListener('drop',e=>{ dz.classList.remove('drag'); const files=e.dataT
 
 async function uploadReceiptFiles(fileList){
   const cli=await ensureDropbox();
-  if(!cli){ alert('Add your Dropbox token in Settings first.'); return; }
+  if(!cli){ alert('Sign into Dropbox (or paste token in Settings) first.'); return; }
   setStatus('sync','Uploading receipts…');
   for(const f of fileList){
     const safe = f.name.replace(/[^\w.\-]+/g,'_');
@@ -777,6 +830,7 @@ function openServiceDialog(editId=null){
   if(editId){ rec=(curBike().service||[]).find(r=>r.id===editId); }
   $('svcDate').value= rec?.date || today;
   $('svcOdo').value = rec?.odo || '';
+  $('svcHours').value = rec?.hours ?? '';
   $('svcBy').value  = rec?.by || '';
   $('svcComments').value = rec?.comments || '';
   $('svcItems').innerHTML='';
@@ -794,6 +848,7 @@ $('svcSave').onclick=()=>{
     id,
     date: $('svcDate').value || new Date().toISOString().slice(0,10),
     odo: parseInt(($('svcOdo').value||'').replace(/,/g,''),10) || 0,
+    hours: parseInt(($('svcHours').value||'').replace(/,/g,''),10) || 0,
     items,
     receipts: svcTempReceipts.slice(),
     by: $('svcBy').value.trim(),
@@ -806,11 +861,18 @@ $('svcSave').onclick=()=>{
   saveLocal(); debounceSync(); renderService();
 };
 
-/* ========= INIT ========= */
-function renderValues(){ ['front.preload','front.comp','front.reb','front.forkHeight','rear.preload','rear.lsc','rear.hsc','rear.reb'].forEach(updateOne);
-  $('currentTitle').textContent=curBike().currentScenario; $('notes').value=curScenario().notes||''; renderRatings(); applyLockedUI(); renderService(); }
+/* ========= MASTER RENDER ========= */
+function renderValues(){
+  ['front.preload','front.comp','front.reb','front.forkHeight','rear.preload','rear.lsc','rear.hsc','rear.reb'].forEach(updateOne);
+  $('currentTitle').textContent=curBike().currentScenario;
+  $('notes').value=curScenario().notes||'';
+  renderRatings();
+  applyLockedUI();
+  renderService();
+}
 function renderAll(){ renderBikeList(); renderScenarioList(); renderPresets(); renderValues(); }
 
+/* ========= INIT ========= */
 (function init(){
   const local=loadLocal(); if(local) data=local; bootstrapDefault(); migrateIfNeeded(); renderAll();
   loadFromDropboxFirst().then(()=>{ migrateIfNeeded(); renderAll(); });
